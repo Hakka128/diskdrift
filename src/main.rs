@@ -13,24 +13,38 @@ use whybig::cli::{Cli, Command};
 use whybig::config;
 use whybig::diff::{self, DiffSelection};
 use whybig::error::{Result, WhyBigError};
+use whybig::history;
 use whybig::inspect;
-use whybig::output::{diff as render_diff, human, inspect as render_inspect, size as fmt_size};
+use whybig::json as jsonapi;
+use whybig::output::{
+    diff as render_diff, history as render_history, human, inspect as render_inspect,
+    size as fmt_size, top as render_top,
+};
 use whybig::snapshot::service::{SnapshotService, StatusReport};
 use whybig::storage::Storage;
+use whybig::top::{self, TopMode};
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match &cli.command {
         Command::Init => run_init(&cli),
         Command::Snapshot { path } => run_snapshot(&cli, path),
-        Command::Status => run_status(&cli),
+        Command::Status { json } => run_status(&cli, *json),
         Command::Diff {
             from,
             to,
             limit,
             all,
-        } => run_diff(&cli, *from, *to, *limit, *all),
-        Command::Inspect { path, limit } => run_inspect(&cli, path, *limit),
+            json,
+        } => run_diff(&cli, *from, *to, *limit, *all, *json),
+        Command::Inspect { path, limit, json } => run_inspect(&cli, path, *limit, *json),
+        Command::History { path, limit, json } => run_history(&cli, path.as_deref(), *limit, *json),
+        Command::Top {
+            path,
+            shrink,
+            limit,
+            json,
+        } => run_top(&cli, path.as_deref(), *shrink, *limit, *json),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -107,6 +121,7 @@ fn run_diff(
     to: Option<i64>,
     limit: Option<usize>,
     all: bool,
+    json: bool,
 ) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let Some(storage) = Storage::open_if_exists(&data_dir)? else {
@@ -122,11 +137,16 @@ fn run_diff(
     };
     let (before, after) = diff::select_pair(&storage, selection)?;
     let diff = diff::compute(&storage, &before, &after, &after.root_path)?;
-    print!("{}", render_diff::render(&diff, resolve_limit(limit, all)));
+    if json {
+        let doc = jsonapi::JsonDiffReportV1::build(&diff);
+        println!("{}", jsonapi::serialize(&doc)?);
+    } else {
+        print!("{}", render_diff::render(&diff, resolve_limit(limit, all)));
+    }
     Ok(())
 }
 
-fn run_inspect(cli: &Cli, raw_path: &Path, limit: Option<usize>) -> Result<()> {
+fn run_inspect(cli: &Cli, raw_path: &Path, limit: Option<usize>, json: bool) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let Some(storage) = Storage::open_if_exists(&data_dir)? else {
         return Err(WhyBigError::NotInitialized);
@@ -136,7 +156,53 @@ fn run_inspect(cli: &Cli, raw_path: &Path, limit: Option<usize>) -> Result<()> {
     let (before, after) = diff::select_pair(&storage, DiffSelection::Default)?;
     let root = after.root_path.clone();
     let report = inspect::inspect(&storage, &before, &after, &root, &target)?;
-    print!("{}", render_inspect::render(&report, limit));
+    if json {
+        let doc = jsonapi::JsonInspectReportV1::build(&report);
+        println!("{}", jsonapi::serialize(&doc)?);
+    } else {
+        print!("{}", render_inspect::render(&report, limit));
+    }
+    Ok(())
+}
+
+fn run_history(cli: &Cli, path: Option<&Path>, limit: Option<usize>, json: bool) -> Result<()> {
+    let data_dir = config::data_dir(cli.data_dir.as_deref())?;
+    let Some(storage) = Storage::open_if_exists(&data_dir)? else {
+        return Err(WhyBigError::NotInitialized);
+    };
+    let report = history::history(&storage, path, limit.unwrap_or(20))?;
+    if json {
+        let doc = jsonapi::JsonHistoryReportV1::build(&report);
+        println!("{}", jsonapi::serialize(&doc)?);
+    } else {
+        print!("{}", render_history::render(&report));
+    }
+    Ok(())
+}
+
+fn run_top(
+    cli: &Cli,
+    path: Option<&Path>,
+    shrink: bool,
+    limit: Option<usize>,
+    json: bool,
+) -> Result<()> {
+    let data_dir = config::data_dir(cli.data_dir.as_deref())?;
+    let Some(storage) = Storage::open_if_exists(&data_dir)? else {
+        return Err(WhyBigError::NotInitialized);
+    };
+    let mode = if shrink {
+        TopMode::Shrink
+    } else {
+        TopMode::Growth
+    };
+    let report = top::top(&storage, DiffSelection::Default, path, mode)?;
+    if json {
+        let doc = jsonapi::JsonTopReportV1::build(&report);
+        println!("{}", jsonapi::serialize(&doc)?);
+    } else {
+        print!("{}", render_top::render(&report, Some(limit.unwrap_or(10))));
+    }
     Ok(())
 }
 
@@ -149,10 +215,15 @@ fn resolve_limit(limit: Option<usize>, all: bool) -> Option<usize> {
     }
 }
 
-fn run_status(cli: &Cli) -> Result<()> {
+fn run_status(cli: &Cli, json: bool) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let report = SnapshotService::status(data_dir)?;
-    print_status(&report);
+    if json {
+        let doc = jsonapi::JsonStatusReportV1::build(&report);
+        println!("{}", jsonapi::serialize(&doc)?);
+    } else {
+        print_status(&report);
+    }
     Ok(())
 }
 

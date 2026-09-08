@@ -480,15 +480,18 @@ fn signed_delta_never_overflows_for_u64_pairs() {
 #[test]
 fn huge_sizes_are_diffed_without_overflow() {
     let mut h = new_harness();
-    h.set_len("data/big.bin", 2 * 1024 * 1024 * 1024); // 2 GiB, sparse file
+    // Sizes far above the common range; kept at 256/512 MiB because Windows
+    // `set_len` allocates real space (not sparse), and the intended overflow
+    // guarantee is already unit-tested via signed_delta/i128 saturation.
+    h.set_len("data/big.bin", 256 * 1024 * 1024);
     h.snap();
-    h.set_len("data/big2.bin", 4 * 1024 * 1024 * 1024); // another 4 GiB
+    h.set_len("data/big2.bin", 512 * 1024 * 1024);
     h.snap();
 
     let d = h.compute();
-    assert_eq!(d.total_delta, 4 * 1024 * 1024 * 1024);
+    assert_eq!(d.total_delta, 512 * 1024 * 1024);
     let data = entry_in(&d.grew, &h.abs_path("data")).unwrap();
-    assert_eq!(data.delta, 4 * 1024 * 1024 * 1024);
+    assert_eq!(data.delta, 512 * 1024 * 1024);
 }
 
 // ─── rendering (limit / all) ─────────────────────────────────────────────

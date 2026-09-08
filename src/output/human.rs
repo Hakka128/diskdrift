@@ -39,6 +39,14 @@ pub fn datetime_ms(ms: i64) -> String {
     }
 }
 
+/// Unix epoch milliseconds → `Sep 08` (local time), for timeline headers.
+pub fn date_short(ms: i64) -> String {
+    match Local.timestamp_millis_opt(ms) {
+        chrono::LocalResult::Single(dt) => dt.format("%b %d").to_string(),
+        _ => "????".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

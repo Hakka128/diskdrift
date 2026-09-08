@@ -11,13 +11,17 @@
 //! filesystem and returns pure data, which `snapshot::service` hands to
 //! `storage::Storage` for transactional persistence.
 
+pub mod benchtree;
 pub mod cli;
 pub mod config;
 pub mod diff;
 pub mod error;
+pub mod history;
 pub mod inspect;
+pub mod json;
 pub mod output;
 pub mod pathutil;
 pub mod scanner;
 pub mod snapshot;
 pub mod storage;
+pub mod top;

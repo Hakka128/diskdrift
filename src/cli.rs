@@ -56,6 +56,9 @@ pub enum Command {
         /// Show every changed entry (overrides --limit).
         #[arg(long)]
         all: bool,
+        /// Emit stable JSON on stdout instead of human text.
+        #[arg(long)]
+        json: bool,
     },
 
     /// Drill down into a directory's changes ("what grew inside this?").
@@ -66,8 +69,44 @@ pub enum Command {
         /// Show at most N contributors (default: all).
         #[arg(long, value_name = "N")]
         limit: Option<usize>,
+        /// Emit stable JSON on stdout instead of human text.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show a directory size history trend across snapshots.
+    History {
+        /// Directory inside the tracked root (default: the root itself).
+        #[arg(value_name = "PATH")]
+        path: Option<PathBuf>,
+        /// How many snapshots to show (default 20).
+        #[arg(long, value_name = "N")]
+        limit: Option<usize>,
+        /// Emit stable JSON on stdout instead of human text.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Rank the biggest growers (or with --shrink, the most freed).
+    Top {
+        /// Directory inside the tracked root (default: the root itself).
+        #[arg(value_name = "PATH")]
+        path: Option<PathBuf>,
+        /// Rank shrinks instead of growth ("Disk Space Freed").
+        #[arg(long)]
+        shrink: bool,
+        /// Show at most N entries (default 10).
+        #[arg(long, value_name = "N")]
+        limit: Option<usize>,
+        /// Emit stable JSON on stdout instead of human text.
+        #[arg(long)]
+        json: bool,
     },
 
     /// Show the database and latest snapshot summary.
-    Status,
+    Status {
+        /// Emit stable JSON on stdout instead of human text.
+        #[arg(long)]
+        json: bool,
+    },
 }

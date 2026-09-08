@@ -195,6 +195,42 @@ impl Storage {
         Ok(out)
     }
 
+    /// Time series of one path across a root's snapshots.
+    ///
+    /// A single query (no N+1 loop): `snapshots` LEFT JOIN `entries`, so a
+    /// snapshot that does not contain the path still yields a point with
+    /// `size = 0` instead of dropping the timestamp. Returns
+    /// `(snapshot_id, created_at_ms, size)` **ascending** by snapshot id (which
+    /// is monotonic with time).
+    pub fn get_history_series(
+        &self,
+        root: &str,
+        path: &str,
+        limit: i64,
+    ) -> Result<Vec<(i64, i64, u64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT s.id, s.created_at, COALESCE(e.size, 0)
+             FROM snapshots s
+             LEFT JOIN entries e ON e.snapshot_id = s.id AND e.path = ?2
+             WHERE s.root_path = ?1
+             ORDER BY s.id DESC LIMIT ?3",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![root, path, limit], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, i64>(1)?,
+                crate::storage::models::i64_to_u64(r.get::<_, i64>(2)?),
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        // We fetched newest-first to apply LIMIT; return ascending for the trend.
+        out.reverse();
+        Ok(out)
+    }
+
     /// One directory entry by path (PK lookup). `None` when the directory was
     /// not present in that snapshot (added after / removed before).
     pub fn get_entry(&self, snapshot_id: i64, path: &str) -> Result<Option<EntryRecord>> {

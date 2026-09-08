@@ -110,6 +110,20 @@ pub fn normalize_lexical(p: &Path) -> PathBuf {
     buf
 }
 
+/// Normalize a user-supplied path argument the same way for every command:
+/// relative → cwd-joined, verbatim prefix stripped, then lexically collapsed.
+/// No filesystem access (the directory may no longer exist).
+pub fn normalize_target(raw: &Path) -> PathBuf {
+    let abs = if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map(|c| c.join(raw))
+            .unwrap_or_else(|_| raw.to_path_buf())
+    };
+    normalize_lexical(&normalize_abs(abs))
+}
+
 /// Component equality; case-insensitive on Windows, byte-exact elsewhere.
 /// `pub(crate)` — used by the storage direct-children filter too.
 #[cfg(windows)]

@@ -64,6 +64,9 @@ pub enum WhyBigError {
     #[error("path `{path}` is outside tracked root `{root}`")]
     PathOutsideRoot { path: String, root: String },
 
+    #[error("json serialization failed: {0}")]
+    Json(String),
+
     #[error("unexpected database content: {0}")]
     CorruptData(String),
 

@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diff::{merge_children_deltas, signed_delta, DiffEntry};
 use crate::error::{Result, WhyBigError};
-use crate::pathutil::{is_under, normalize_abs, normalize_lexical};
+use crate::pathutil::{is_under, normalize_lexical};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
 
@@ -36,15 +36,9 @@ pub struct InspectReport {
 /// Normalize a user-supplied inspect target: relative paths join the cwd and
 /// the Windows verbatim prefix is stripped — same rules as the scanner. No
 /// filesystem access: the directory may no longer exist.
+/// Normalize a user-supplied inspect target with the shared path rules.
 pub fn normalize_target(raw: &Path) -> PathBuf {
-    let abs = if raw.is_absolute() {
-        raw.to_path_buf()
-    } else {
-        std::env::current_dir()
-            .map(|c| c.join(raw))
-            .unwrap_or_else(|_| raw.to_path_buf())
-    };
-    normalize_lexical(&normalize_abs(abs))
+    crate::pathutil::normalize_target(raw)
 }
 
 /// Compute an inspect report for `target` within `root`.
