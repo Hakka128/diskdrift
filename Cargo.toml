@@ -1,0 +1,24 @@
+[package]
+name = "whybig"
+version = "0.1.0"
+edition = "2021"
+description = "WhyBig: disk space growth tracker — helps you answer \"what got big?\"."
+license = "MIT"
+repository = "https://github.com/whybig/whybig"
+keywords = ["disk", "storage", "snapshot", "cli", "du"]
+categories = ["command-line-utilities", "filesystem"]
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4"
+clap = { version = "4", features = ["derive", "env"] }
+indicatif = "0.17"
+rusqlite = { version = "0.31", features = ["bundled"] }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+# Milestone 1 keeps the release profile conservative; revisit after benchmarking.
+lto = "thin"
