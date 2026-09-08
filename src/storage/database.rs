@@ -163,6 +163,42 @@ impl Storage {
             .optional()?)
     }
 
+    /// Of one root's snapshots with `created_at <= time_ms`, the one closest to
+    /// `time_ms` (created_at DESC; ties broken by smallest id for determinism).
+    /// Used by `--since`.
+    pub fn get_snapshot_at_or_before(
+        &self,
+        root: &str,
+        time_ms: i64,
+    ) -> Result<Option<SnapshotRecord>> {
+        let sql = format!(
+            "SELECT {} FROM snapshots \
+             WHERE root_path = ?1 AND created_at <= ?2 \
+             ORDER BY created_at DESC, id ASC LIMIT 1",
+            snapshot_column_list()
+        );
+        Ok(self
+            .conn
+            .query_row(
+                &sql,
+                rusqlite::params![root, time_ms],
+                SnapshotRecord::from_row,
+            )
+            .optional()?)
+    }
+
+    /// The first snapshot of one root (by id).
+    pub fn earliest_snapshot_for_root(&self, root: &str) -> Result<Option<SnapshotRecord>> {
+        let sql = format!(
+            "SELECT {} FROM snapshots WHERE root_path = ?1 ORDER BY id ASC LIMIT 1",
+            snapshot_column_list()
+        );
+        Ok(self
+            .conn
+            .query_row(&sql, [root], SnapshotRecord::from_row)
+            .optional()?)
+    }
+
     /// One snapshot by id.
     pub fn get_snapshot(&self, id: i64) -> Result<Option<SnapshotRecord>> {
         let sql = format!(
@@ -310,10 +346,34 @@ impl Storage {
         )?)
     }
 
+    /// Delete snapshots (entries cascade via FK). Single transaction: any
+    /// failure rolls back. Used by `whybig prune --apply`.
+    pub fn delete_snapshots(&mut self, ids: &[i64]) -> Result<i64> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut deleted: i64 = 0;
+        for id in ids {
+            deleted += tx.execute("DELETE FROM snapshots WHERE id = ?1", [*id])? as i64;
+        }
+        tx.commit()?;
+        Ok(deleted)
+    }
+
     /// Access to the raw connection — used by integration tests to inject
     /// failures (e.g. a trigger that aborts an insert).
     pub fn connection(&self) -> &Connection {
         &self.conn
+    }
+
+    /// Compact the database file with `VACUUM` (removes free pages created by
+    /// deletes; needs roughly one copy of the DB as temporary space).
+    pub fn vacuum(&mut self) -> Result<()> {
+        self.conn.execute_batch("VACUUM")?;
+        Ok(())
     }
 }
 

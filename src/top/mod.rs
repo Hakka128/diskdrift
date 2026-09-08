@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use crate::diff::{self, DiffEntry, DiffSelection};
+use crate::diff::{self, DiffEntry, DiffSelection, SinceInfo};
 use crate::error::{Result, WhyBigError};
 use crate::pathutil::{is_under, normalize_target};
 use crate::storage::models::SnapshotRecord;
@@ -34,6 +34,8 @@ pub struct TopReport {
     pub mode: TopMode,
     /// Already sorted by the diff engine (growth desc / shrink |delta| desc).
     pub entries: Vec<DiffEntry>,
+    /// Present only when `--since` selected the pair.
+    pub since: Option<SinceInfo>,
 }
 
 /// Rank the direct-children changes between two snapshots (default selection)
@@ -44,8 +46,8 @@ pub fn top(
     raw_target: Option<&Path>,
     mode: TopMode,
 ) -> Result<TopReport> {
-    let (before, after) = diff::select_pair(storage, selection)?;
-    let root = after.root_path.clone();
+    let pair = diff::select_pair(storage, selection)?;
+    let root = pair.after.root_path.clone();
 
     let scope = match raw_target {
         Some(t) => {
@@ -61,7 +63,7 @@ pub fn top(
         None => root.clone(),
     };
 
-    let d = diff::compute(storage, &before, &after, &scope)?;
+    let d = diff::compute_pair(storage, &pair, &scope)?;
     let entries = match mode {
         TopMode::Growth => d.grew,
         TopMode::Shrink => d.shrank,
@@ -70,9 +72,10 @@ pub fn top(
     Ok(TopReport {
         root,
         scope,
-        before,
-        after,
+        before: pair.before,
+        after: pair.after,
         mode,
         entries,
+        since: pair.since,
     })
 }

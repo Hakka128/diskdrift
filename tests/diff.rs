@@ -73,7 +73,8 @@ impl Harness {
 
     fn compute(&self) -> SnapshotDiff {
         let storage = self.storage();
-        let (b, a) = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+        let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+        let (b, a) = (pair.before, pair.after);
         diff::compute(&storage, &b, &a, &a.root_path).unwrap()
     }
 
@@ -353,7 +354,8 @@ fn default_selection_uses_latest_two_of_current_root() {
     h.snap(); // id3
 
     let storage = h.storage();
-    let (before, after) = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let (before, after) = (pair.before, pair.after);
     // Must be id2 → id3, not id1 → id3.
     assert_eq!(before.id, 2);
     assert_eq!(after.id, 3);
@@ -375,7 +377,8 @@ fn multiple_roots_never_cross_compare_by_default() {
     service.run_snapshot(&r2, &mut |_| {}).unwrap();
 
     let storage = Storage::open(&data_dir).unwrap();
-    let (before, after) = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let (before, after) = (pair.before, pair.after);
     // Latest overall root is r2; both chosen snapshots belong to r2.
     assert_eq!(before.root_path, after.root_path);
     let r2_canon = plain_path(&fs::canonicalize(&r2).unwrap());
@@ -459,7 +462,8 @@ fn explicit_same_snapshot_diff_is_allowed_and_empty() {
     let mut h = new_harness();
     let id = h.snap();
     let storage = h.storage();
-    let (b, a) = diff::select_pair(&storage, DiffSelection::Explicit { from: id, to: id }).unwrap();
+    let pair = diff::select_pair(&storage, DiffSelection::Explicit { from: id, to: id }).unwrap();
+    let (b, a) = (pair.before, pair.after);
     assert_eq!(b.id, a.id);
     let d = diff::compute(&storage, &b, &a, &a.root_path).unwrap();
     assert_eq!(d.total_delta, 0);

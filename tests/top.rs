@@ -21,8 +21,8 @@ fn top_of(h: &Harness, raw: Option<&str>, mode: TopMode) -> whybig::top::TopRepo
 /// Assert `top` matches `diff` for the same pair (single source of truth).
 fn matches_diff(h: &Harness, report: &whybig::top::TopReport, mode: TopMode) {
     let storage = h.storage();
-    let (b, a) = diff::select_pair(&storage, DiffSelection::Default).unwrap();
-    let d = diff::compute(&storage, &b, &a, &report.scope).unwrap();
+    let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let d = diff::compute(&storage, &pair.before, &pair.after, &report.scope).unwrap();
     let (ours, theirs) = match mode {
         TopMode::Growth => (&report.entries, &d.grew),
         TopMode::Shrink => (&report.entries, &d.shrank),

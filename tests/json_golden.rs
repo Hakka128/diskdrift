@@ -16,9 +16,15 @@ use whybig::json::{
     JsonTopReportV1,
 };
 use whybig::snapshot::service::SnapshotService;
-use whybig::storage::models::{EntryToWrite, NewSnapshot};
+use whybig::storage::models::{EntryToWrite, NewSnapshot, SnapshotRecord};
 use whybig::storage::Storage;
 use whybig::top::{self, TopMode};
+
+/// Owned `(before, after)` pair for the fixed snapshots.
+fn select_pair_direct(storage: &Storage, id1: i64, id2: i64) -> (SnapshotRecord, SnapshotRecord) {
+    let pair = diff::select_pair(storage, DiffSelection::Explicit { from: id1, to: id2 }).unwrap();
+    (pair.before, pair.after)
+}
 
 const T1: i64 = 1_600_000_000_000; // 2020-09-13T12:26:40Z
 const T2: i64 = 1_600_000_100_000;
@@ -87,8 +93,7 @@ fn parse(s: &str) -> Value {
 #[test]
 fn diff_golden_schema_and_values() {
     let (_td, storage, id1, id2) = seed_two_snapshots();
-    let (before, after) =
-        diff::select_pair(&storage, DiffSelection::Explicit { from: id1, to: id2 }).unwrap();
+    let (before, after) = select_pair_direct(&storage, id1, id2);
     let d = diff::compute(&storage, &before, &after, &after.root_path).unwrap();
     let doc = JsonDiffReportV1::build(&d);
     let text = serialize(&doc).unwrap();
@@ -140,8 +145,7 @@ fn json_to_string<T: serde::Serialize>(v: &T) -> String {
 #[test]
 fn inspect_golden_schema_and_values() {
     let (_td, storage, id1, id2) = seed_two_snapshots();
-    let (before, after) =
-        diff::select_pair(&storage, DiffSelection::Explicit { from: id1, to: id2 }).unwrap();
+    let (before, after) = select_pair_direct(&storage, id1, id2);
     let root = after.root_path.clone();
     let target = key(&root, "b");
     let report = whybig::inspect::inspect(
@@ -254,8 +258,7 @@ fn negative_delta_is_preserved_and_signed() {
     let id1 = save_snapshot_fixed(&mut storage, &root, T1, 500, &[("b", 400)]);
     let id2 = save_snapshot_fixed(&mut storage, &root, T2, 200, &[("b", 100)]);
 
-    let (before, after) =
-        diff::select_pair(&storage, DiffSelection::Explicit { from: id1, to: id2 }).unwrap();
+    let (before, after) = select_pair_direct(&storage, id1, id2);
     let d = diff::compute(&storage, &before, &after, &after.root_path).unwrap();
     let v = parse(&serialize(&JsonDiffReportV1::build(&d)).unwrap());
     assert_eq!(v["delta_bytes"], -300);
@@ -274,8 +277,7 @@ fn unicode_path_serializes_round_trip() {
     let id1 = save_snapshot_fixed(&mut storage, &root, T1, 100, &[("数据", 100)]);
     let id2 = save_snapshot_fixed(&mut storage, &root, T2, 200, &[("数据", 200)]);
 
-    let (before, after) =
-        diff::select_pair(&storage, DiffSelection::Explicit { from: id1, to: id2 }).unwrap();
+    let (before, after) = select_pair_direct(&storage, id1, id2);
     let d = diff::compute(&storage, &before, &after, &after.root_path).unwrap();
     let v = parse(&serialize(&JsonDiffReportV1::build(&d)).unwrap());
     let grew_path = v["grew"][0]["path"].as_str().unwrap();
@@ -285,8 +287,7 @@ fn unicode_path_serializes_round_trip() {
 #[test]
 fn json_output_has_no_ansi_and_is_a_single_document() {
     let (_td, storage, id1, id2) = seed_two_snapshots();
-    let (before, after) =
-        diff::select_pair(&storage, DiffSelection::Explicit { from: id1, to: id2 }).unwrap();
+    let (before, after) = select_pair_direct(&storage, id1, id2);
     let d = diff::compute(&storage, &before, &after, &after.root_path).unwrap();
     let text = serialize(&JsonDiffReportV1::build(&d)).unwrap();
     assert!(!text.contains('\u{1b}'), "no ANSI escape sequences");

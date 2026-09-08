@@ -399,3 +399,112 @@ fn history_and_top_accept_relative_paths_from_cwd() {
     let (ok2, out2) = run_in(&args);
     assert!(ok2, "relative top: {out2}");
 }
+
+// ─── Milestone 4: --since / prune / snapshot --json ──────────────────────
+
+#[test]
+fn m4_since_prune_and_snapshot_json_end_to_end() {
+    let td = TempDir::new().unwrap();
+    let root = td.path().join("root");
+    let root_s = root.to_str().unwrap().to_string();
+    let data = td.path().join("data");
+    let data_s = data.to_str().unwrap().to_string();
+    fs::create_dir_all(root.join("app")).unwrap();
+
+    for i in 1..=3u64 {
+        fs::write(
+            root.join(format!("app/f{i}.bin")),
+            vec![1u8; i as usize * 100],
+        )
+        .unwrap();
+        let r = run(&["--data-dir", &data_s, "snapshot", &root_s]);
+        assert!(r.status.success(), "snapshot {i}: {}", r.stderr);
+    }
+
+    // diff --since 7d → earliest fallback, honest notice in human output.
+    let d_since = run(&["--data-dir", &data_s, "diff", "--since", "7d"]);
+    assert!(d_since.status.success(), "stderr: {}", d_since.stderr);
+    assert!(d_since.stdout.contains("Disk Growth"), "{}", d_since.stdout);
+    assert!(
+        d_since
+            .stdout
+            .contains("Using earliest available snapshot."),
+        "{}",
+        d_since.stdout
+    );
+
+    // top --since works too.
+    let t_since = run(&["--data-dir", &data_s, "top", "--since", "7d"]);
+    assert!(t_since.status.success(), "stderr: {}", t_since.stderr);
+    assert!(
+        t_since.stdout.contains("Top Disk Growth"),
+        "{}",
+        t_since.stdout
+    );
+
+    // --since must conflict with --from at parse time (exit 2).
+    let conflicted = run(&[
+        "--data-dir",
+        &data_s,
+        "diff",
+        "--from",
+        "1",
+        "--since",
+        "7d",
+    ]);
+    assert!(!conflicted.status.success());
+    assert!(
+        conflicted.stderr.contains("cannot be used with") || conflicted.stderr.contains("Usage"),
+        "stderr: {}",
+        conflicted.stderr
+    );
+
+    // prune preview: all snapshots are recent → nothing would be removed.
+    let preview = run(&["--data-dir", &data_s, "prune"]);
+    assert!(preview.status.success(), "stderr: {}", preview.stderr);
+    assert!(
+        preview.stdout.contains("Retention Preview"),
+        "{}",
+        preview.stdout
+    );
+    assert!(
+        preview.stdout.contains("No data has been deleted."),
+        "{}",
+        preview.stdout
+    );
+    assert!(
+        preview.stdout.contains("Would remove:"),
+        "{}",
+        preview.stdout
+    );
+
+    // prune --apply: dry-run and apply share the plan; nothing recent removed.
+    let apply = run(&["--data-dir", &data_s, "prune", "--apply"]);
+    assert!(apply.status.success(), "stderr: {}", apply.stderr);
+    assert!(apply.stdout.contains("Removed"), "{}", apply.stdout);
+
+    // history still works after pruning.
+    let hist = run(&["--data-dir", &data_s, "history"]);
+    assert!(hist.status.success(), "stderr: {}", hist.stderr);
+    assert!(hist.stdout.contains("Disk History"), "{}", hist.stdout);
+
+    // prune --json (preview) is pure JSON.
+    let pj = run(&["--data-dir", &data_s, "prune", "--json"]);
+    assert!(pj.status.success(), "stderr: {}", pj.stderr);
+    let v: serde_json::Value = serde_json::from_str(&pj.stdout)
+        .unwrap_or_else(|e| panic!("prune --json stdout polluted: {e}\n{}", pj.stdout));
+    assert_eq!(v["schema_version"], 1);
+    assert_eq!(v["command"], "prune");
+    assert_eq!(v["applied"], false);
+
+    // snapshot --json: stdout is pure JSON, no progress bar text.
+    let sj = run(&["--data-dir", &data_s, "snapshot", &root_s, "--json"]);
+    assert!(sj.status.success(), "stderr: {}", sj.stderr);
+    assert!(!sj.stdout.contains('\u{1b}'));
+    let v2: serde_json::Value = serde_json::from_str(&sj.stdout)
+        .unwrap_or_else(|e| panic!("snapshot --json stdout polluted: {e}\n{}", sj.stdout));
+    assert_eq!(v2["schema_version"], 1);
+    assert_eq!(v2["command"], "snapshot");
+    assert!(v2["snapshot_id"].is_u64());
+    assert_eq!(v2["warnings"], serde_json::json!([]));
+}

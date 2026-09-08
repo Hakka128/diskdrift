@@ -27,9 +27,9 @@ fn init_creates_an_empty_migrated_database() {
 
     assert!(storage.database_path().exists());
     assert_eq!(storage.count_snapshots().unwrap(), 0);
-    // schema is at the latest migration
+    // schema is at the latest migration (v2 adds the meta table)
     let conn = storage.connection();
-    assert_eq!(migrations::schema_version(conn).unwrap(), 1);
+    assert_eq!(migrations::schema_version(conn).unwrap(), 2);
     // both tables + index exist
     let tables: Vec<String> = conn
         .prepare("SELECT name FROM sqlite_master WHERE type IN ('table','index') ORDER BY name")

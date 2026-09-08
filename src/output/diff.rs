@@ -20,6 +20,21 @@ pub fn render(diff: &SnapshotDiff, limit: Option<usize>) -> String {
     out.push_str(&format!("root: {}\n", diff.root));
     out.push('\n');
 
+    // `--since` honesty: when we fell back to the earliest snapshot, tell the
+    // user the requested window was not actually covered.
+    if let Some(since) = &diff.since {
+        if since.used_earliest {
+            out.push_str(&format!("Requested: {}\n", since.requested_human()));
+            out.push_str(&format!(
+                "Available history starts: {}\n",
+                human::date_short(since.effective_before_ms)
+            ));
+            out.push_str("Using earliest available snapshot.");
+            out.push('\n');
+            out.push('\n');
+        }
+    }
+
     out.push_str("Total\n");
     out.push_str(&format!("  before:  {}\n", size::format(diff.total_before)));
     out.push_str(&format!("  after:   {}\n", size::format(diff.total_after)));

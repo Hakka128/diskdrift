@@ -67,6 +67,21 @@ pub enum WhyBigError {
     #[error("json serialization failed: {0}")]
     Json(String),
 
+    #[error("invalid `--since` duration `{0}` (expected e.g. 30m, 24h, 7d, 4w; whole units only)")]
+    BadDuration(String),
+
+    #[error("no snapshot of root `{root}` earlier than {requested} — record more snapshots first")]
+    NoEarlierSnapshot { root: String, requested: String },
+
+    #[error("invalid retention policy: {0}")]
+    BadPolicy(String),
+
+    #[error("refusing to prune: {0}")]
+    PruneSafety(String),
+
+    #[error("Database was created by a newer version of WhyBig. Please update WhyBig.")]
+    NewerSchema,
+
     #[error("unexpected database content: {0}")]
     CorruptData(String),
 

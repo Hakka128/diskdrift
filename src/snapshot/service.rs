@@ -16,12 +16,16 @@ use crate::storage::Storage;
 #[derive(Debug, Clone)]
 pub struct SnapshotOutcome {
     pub snapshot_id: i64,
+    /// Unix epoch ms (UTC) of the snapshot row.
+    pub created_at_ms: i64,
     pub root_path: PathBuf,
     pub total_size: u64,
     pub file_count: u64,
     pub dir_count: u64,
     pub skipped_count: u64,
     pub elapsed: Duration,
+    /// Non-fatal scan problems (permission/vanished/IO), carried for `--json`.
+    pub warnings: Vec<crate::scanner::ScanWarning>,
 }
 
 /// What `whybig status` reports.
@@ -98,16 +102,19 @@ impl SnapshotService {
                 reason: e,
             })?;
 
-        let snapshot_id = self.store(&result, &root)?;
+        let created_at_ms = chrono::Utc::now().timestamp_millis();
+        let snapshot_id = self.store(&result, &root, created_at_ms)?;
 
         Ok(SnapshotOutcome {
             snapshot_id,
+            created_at_ms,
             root_path: root,
             total_size: result.summary.total_size,
             file_count: result.summary.file_count,
             dir_count: result.summary.dir_count,
             skipped_count: result.summary.skipped_count,
             elapsed: result.summary.elapsed,
+            warnings: result.warnings,
         })
     }
 
@@ -121,7 +128,7 @@ impl SnapshotService {
     }
 
     /// Persist a scan result (path lossy-UTF8 keys, sizes saturated to i64).
-    fn store(&mut self, result: &ScanResult, root: &Path) -> Result<i64> {
+    fn store(&mut self, result: &ScanResult, root: &Path, created_at_ms: i64) -> Result<i64> {
         let entries = result
             .entries
             .iter()
@@ -134,7 +141,7 @@ impl SnapshotService {
             .collect::<Vec<_>>();
 
         let input = NewSnapshot {
-            created_at_ms: chrono::Utc::now().timestamp_millis(),
+            created_at_ms,
             root_path: root.to_string_lossy().into_owned(),
             total_size: result.summary.total_size,
             file_count: result.summary.file_count,

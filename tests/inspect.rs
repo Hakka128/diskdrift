@@ -55,7 +55,8 @@ impl Harness {
 
     fn report(&self, target_rel: &str) -> InspectReport {
         let storage = self.storage();
-        let (b, a) = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+        let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+        let (b, a) = (pair.before, pair.after);
         let root = a.root_path.clone();
         let target = self.root.join(target_rel);
         inspect::inspect(&storage, &b, &a, &root, &target).unwrap()
@@ -142,7 +143,8 @@ fn nonexistent_in_both_snapshots_is_an_error() {
     h.snap();
     h.snap();
     let storage = h.storage();
-    let (b, a) = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let (b, a) = (pair.before, pair.after);
     let root = a.root_path.clone();
     let err = inspect::inspect(&storage, &b, &a, &root, &h.root.join("nope")).unwrap_err();
     assert!(err
@@ -156,7 +158,8 @@ fn outside_tracked_root_is_rejected() {
     h.snap();
     h.snap();
     let storage = h.storage();
-    let (b, a) = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+    let (b, a) = (pair.before, pair.after);
     let root = a.root_path.clone();
     // A sibling directory outside the scanned root.
     let outside = h._td.path().join("other");
@@ -259,7 +262,8 @@ fn windows_hierarchy_case_insensitivity_works_on_windows() {
 
         // NTFS case-insensitive: inspect with a differently-cased path.
         let storage = h.storage();
-        let (b, a) = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+        let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
+        let (b, a) = (pair.before, pair.after);
         let root = a.root_path.clone();
         let target = h.root.join("casedir");
         let r = inspect::inspect(&storage, &b, &a, &root, &target).unwrap();

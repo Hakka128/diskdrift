@@ -14,6 +14,7 @@ use std::path::Path;
 
 use crate::error::{Result, WhyBigError};
 use crate::pathutil::{is_direct_child, paths_equal};
+use crate::since::{human_ago, DurationSecs};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
 
@@ -54,6 +55,8 @@ pub struct SnapshotDiff {
     pub grew: Vec<DiffEntry>,
     /// Entries that shrank, sorted by |delta| descending (delta ascending).
     pub shrank: Vec<DiffEntry>,
+    /// Present only when `--since` selected the pair.
+    pub since: Option<SinceInfo>,
 }
 
 /// How the two snapshots to compare are chosen.
@@ -61,8 +64,42 @@ pub struct SnapshotDiff {
 pub enum DiffSelection {
     /// Latest two snapshots of the most recently tracked root.
     Default,
+    /// `--since` duration: latest snapshot vs. the snapshot just before the
+    /// requested range (see [`SinceInfo`]).
+    Since { duration: DurationSecs },
     /// Explicit ids (validated to share a root by [`select_pair`]).
     Explicit { from: i64, to: i64 },
+}
+
+/// What `--since` actually selected — exposed to domain/JSON so the user is
+/// never silently shown a comparison of a different window than requested.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SinceInfo {
+    /// The requested window length in seconds (as parsed from `--since`).
+    pub requested_seconds: i64,
+    /// UTC ms: `latest.created_at - requested_seconds*1000` — the ideal window
+    /// start we asked for.
+    pub requested_target_ms: i64,
+    /// UTC ms of the snapshot actually used as `before`.
+    pub effective_before_ms: i64,
+    /// True when no snapshot existed at/before the requested window and we fell
+    /// back to the root's earliest snapshot.
+    pub used_earliest: bool,
+}
+
+impl SinceInfo {
+    /// Short human phrase, e.g. "30 days ago".
+    pub fn requested_human(&self) -> String {
+        human_ago(self.requested_seconds)
+    }
+}
+
+/// The chosen pair plus any selection metadata.
+#[derive(Debug, Clone)]
+pub struct SelectedPair {
+    pub before: SnapshotRecord,
+    pub after: SnapshotRecord,
+    pub since: Option<SinceInfo>,
 }
 
 /// Signed delta on `u64` sizes — never overflows (i128 arithmetic).
@@ -70,8 +107,7 @@ pub fn signed_delta(before: u64, after: u64) -> i128 {
     after as i128 - before as i128
 }
 
-/// Compose two `FileSystem`-level snapshots into a diff.
-pub fn compute(
+fn compute_inner(
     storage: &Storage,
     before: &SnapshotRecord,
     after: &SnapshotRecord,
@@ -103,7 +139,26 @@ pub fn compute(
         total_delta: signed_delta(total_before, total_after),
         grew,
         shrank,
+        since: None,
     })
+}
+
+/// Compose two snapshots into a diff (no `--since` metadata).
+pub fn compute(
+    storage: &Storage,
+    before: &SnapshotRecord,
+    after: &SnapshotRecord,
+    scope: &str,
+) -> Result<SnapshotDiff> {
+    compute_inner(storage, before, after, scope)
+}
+
+/// Compose a diff from a [`SelectedPair`], stamping `since` metadata when the
+/// pair was chosen by `--since`.
+pub fn compute_pair(storage: &Storage, pair: &SelectedPair, scope: &str) -> Result<SnapshotDiff> {
+    let mut d = compute_inner(storage, &pair.before, &pair.after, scope)?;
+    d.since = pair.since;
+    Ok(d)
 }
 
 /// Merge the **direct children** of `scope` across two snapshots into per-directory
@@ -174,14 +229,12 @@ pub fn merge_children_deltas(
 /// Choose and validate the `(before, after)` snapshot pair.
 ///
 /// - `Default`: the most recent snapshot's root, then its two latest snapshots
-///   (older first). Errors appear when there is no snapshot, or fewer than two
-///   for that root.
-/// - `Explicit`: both ids must exist; a different-root pair is rejected so
-///   snapshots are never (silently) compared across roots.
-pub fn select_pair(
-    storage: &Storage,
-    selection: DiffSelection,
-) -> Result<(SnapshotRecord, SnapshotRecord)> {
+///   (older first). Errors on no snapshot or fewer than two for that root.
+/// - `Since { duration }`: the latest snapshot as `after`; `before` is the
+///   snapshot with `created_at <= after - duration` closest to that target; if
+///   none exists, the root's earliest snapshot is used and `used_earliest` set.
+/// - `Explicit`: both ids must exist; different roots are rejected.
+pub fn select_pair(storage: &Storage, selection: DiffSelection) -> Result<SelectedPair> {
     match selection {
         DiffSelection::Explicit { from, to } => {
             let before = storage
@@ -193,7 +246,11 @@ pub fn select_pair(
             if !paths_equal(Path::new(&before.root_path), Path::new(&after.root_path)) {
                 return Err(WhyBigError::CrossRootDiff);
             }
-            Ok((before, after))
+            Ok(SelectedPair {
+                before,
+                after,
+                since: None,
+            })
         }
         DiffSelection::Default => {
             let latest = storage.latest_snapshot()?.ok_or(WhyBigError::NoSnapshots)?;
@@ -206,7 +263,46 @@ pub fn select_pair(
                 });
             }
             // get_latest_snapshots_for_root returns newest first.
-            Ok((snaps[1].clone(), snaps[0].clone()))
+            Ok(SelectedPair {
+                before: snaps[1].clone(),
+                after: snaps[0].clone(),
+                since: None,
+            })
+        }
+        DiffSelection::Since { duration } => {
+            let latest = storage.latest_snapshot()?.ok_or(WhyBigError::NoSnapshots)?;
+            let root = latest.root_path.clone();
+            let requested_target_ms = latest.created_at_ms.saturating_sub(duration.as_ms());
+
+            // Strictly at-or-before the target; ties break toward the smallest
+            // id (deterministic), so `after` is never chosen.
+            let chosen = match storage.get_snapshot_at_or_before(&root, requested_target_ms)? {
+                Some(s) => s,
+                None => storage
+                    .earliest_snapshot_for_root(&root)?
+                    .ok_or(WhyBigError::NoSnapshots)?,
+            };
+            let used_earliest = chosen.created_at_ms > requested_target_ms;
+
+            let since = SinceInfo {
+                requested_seconds: duration.0,
+                requested_target_ms,
+                effective_before_ms: chosen.created_at_ms,
+                used_earliest,
+            };
+            // `after` must be strictly newer than `before` for a meaningful
+            // window; if the same snapshot is both (single snapshot), error.
+            if chosen.id >= latest.id {
+                return Err(WhyBigError::NoEarlierSnapshot {
+                    root,
+                    requested: since.requested_human(),
+                });
+            }
+            Ok(SelectedPair {
+                before: chosen,
+                after: latest,
+                since: Some(since),
+            })
         }
     }
 }

@@ -165,7 +165,8 @@ fn main() {
 
     // ── diff ──────────────────────────────────────────────────────────────
     let t3 = Instant::now();
-    let (before, after) = diff::select_pair(&storage, DiffSelection::Default).expect("select");
+    let pair = diff::select_pair(&storage, DiffSelection::Default).expect("select");
+    let (before, after) = (pair.before, pair.after);
     let diff = diff::compute(&storage, &before, &after, &after.root_path).expect("diff");
     println!(
         "diff:               {:8.1} ms  ({} grew + {} shrank)",

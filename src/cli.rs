@@ -1,7 +1,7 @@
 //! Command-line interface (clap derive).
 //!
 //! Presentation layer only: parsing happens here, business logic lives in
-//! [`crate::snapshot`] / [`crate::storage`] / [`crate::scanner`].
+//! [`crate::snapshot`] / [`crate::storage`] / [`crate::scanner`] etc.
 
 use std::path::PathBuf;
 
@@ -40,6 +40,16 @@ pub enum Command {
         /// The directory to scan (absolute or relative).
         #[arg(value_name = "PATH")]
         path: PathBuf,
+        /// Emit stable JSON on stdout instead of human text (no progress bar).
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show the database and latest snapshot summary.
+    Status {
+        /// Emit stable JSON on stdout instead of human text.
+        #[arg(long)]
+        json: bool,
     },
 
     /// Show what changed between two snapshots (top-level attribution).
@@ -50,6 +60,14 @@ pub enum Command {
         /// Newer snapshot id to compare (requires --from).
         #[arg(long, value_name = "ID", requires = "from")]
         to: Option<i64>,
+        /// Compare from ~N ago instead (e.g. 30m, 24h, 7d, 4w).
+        #[arg(
+            long,
+            value_name = "DUR",
+            conflicts_with = "from",
+            conflicts_with = "to"
+        )]
+        since: Option<String>,
         /// Show at most N entries per group (default 10).
         #[arg(long, value_name = "N")]
         limit: Option<usize>,
@@ -98,15 +116,35 @@ pub enum Command {
         /// Show at most N entries (default 10).
         #[arg(long, value_name = "N")]
         limit: Option<usize>,
+        /// Compare from ~N ago instead (e.g. 30m, 24h, 7d, 4w).
+        #[arg(long, value_name = "DUR")]
+        since: Option<String>,
         /// Emit stable JSON on stdout instead of human text.
         #[arg(long)]
         json: bool,
     },
 
-    /// Show the database and latest snapshot summary.
-    Status {
+    /// Preview and apply WhyBig's snapshot retention policy.
+    ///
+    /// Default is a dry run — nothing is deleted unless `--apply` is given.
+    Prune {
+        /// Actually delete snapshots according to the policy.
+        #[arg(long)]
+        apply: bool,
+        /// Keep everything newer than N days (default 7).
+        #[arg(long, value_name = "N")]
+        recent_days: Option<u32>,
+        /// Keep one per day up to N days (default 30).
+        #[arg(long, value_name = "N")]
+        daily_days: Option<u32>,
+        /// Keep one per week up to N days (default 365).
+        #[arg(long, value_name = "N")]
+        weekly_days: Option<u32>,
         /// Emit stable JSON on stdout instead of human text.
         #[arg(long)]
         json: bool,
     },
+
+    /// Explicitly shrink the database file (VACUUM; needs temp space).
+    Compact,
 }

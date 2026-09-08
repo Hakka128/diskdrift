@@ -37,11 +37,29 @@ const MIGRATIONS: &[&str] = &[
     );\
     CREATE INDEX idx_entries_path ON entries(path);\
     ",
+    // v2 — a `meta` key/value table: general purpose (store app metadata) and
+    // the vehicle for real migration tests (v1 → v2 upgrades preserve data).
+    "\
+    CREATE TABLE meta (\
+        key TEXT PRIMARY KEY,\
+        value TEXT NOT NULL\
+    );\
+    ",
 ];
 
-/// Bring `conn` up to the latest schema version. Idempotent.
+/// Latest schema version this binary understands.
+pub fn latest_version() -> i64 {
+    MIGRATIONS.len() as i64
+}
+
+/// Bring `conn` up to the latest schema version. Idempotent; refuses databases
+/// from a NEWER WhyBig.
 pub fn migrate(conn: &mut Connection) -> Result<()> {
     let current: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+
+    if current > latest_version() {
+        return Err(WhyBigError::NewerSchema);
+    }
 
     for (idx, script) in MIGRATIONS.iter().enumerate() {
         let target = (idx + 1) as i64;

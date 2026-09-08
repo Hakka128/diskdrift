@@ -34,3 +34,32 @@ jobs:
 
       - name: Tests
         run: cargo test
+
+  release-smoke:
+    # Minimal end-to-end sanity of the actual release binary.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
+      - name: Build release
+        run: cargo build --release
+      - name: Release binary smoke
+        run: |
+          set -euo pipefail
+          ./target/release/whybig --version
+          ./target/release/whybig --help >/dev/null
+          DATA="$(mktemp -d)"
+          TREE="$(mktemp -d)"
+          mkdir -p "$TREE/app"
+          echo hello > "$TREE/app/f.txt"
+          ./target/release/whybig --data-dir "$DATA" init
+          ./target/release/whybig --data-dir "$DATA" snapshot "$TREE"
+          ./target/release/whybig --data-dir "$DATA" snapshot "$TREE"
+          ./target/release/whybig --data-dir "$DATA" diff
+          ./target/release/whybig --data-dir "$DATA" top
+          ./target/release/whybig --data-dir "$DATA" history
+          ./target/release/whybig --data-dir "$DATA" prune
+          ./target/release/whybig --data-dir "$DATA" status

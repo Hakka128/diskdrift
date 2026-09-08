@@ -20,6 +20,20 @@ pub fn render(report: &TopReport, limit: Option<usize>) -> String {
     ));
     out.push('\n');
 
+    // `--since` honesty (same notice family as diff).
+    if let Some(since) = &report.since {
+        if since.used_earliest {
+            out.push_str(&format!("Requested: {}\n", since.requested_human()));
+            out.push_str(&format!(
+                "Available history starts: {}\n",
+                human::date_short(since.effective_before_ms)
+            ));
+            out.push_str("Using earliest available snapshot.");
+            out.push('\n');
+            out.push('\n');
+        }
+    }
+
     let scope = Path::new(&report.scope);
     let limit = limit.unwrap_or(usize::MAX);
     let shown = report.entries.len().min(limit);
