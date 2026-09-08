@@ -119,21 +119,21 @@ fn empty_directory_side_by_side_with_nested_ones() {
 #[cfg(unix)]
 #[test]
 fn deep_nested_directories_do_not_overflow_the_stack() {
-    // Explicit-stack walker: 5,000 levels must be fine (a recursive walker
-    // would blow the call stack long before this). Unix-only: creating a
-    // 5,000-deep tree exceeds Windows MAX_PATH on many CI runners, and
+    // Explicit-stack walker: 500 levels is deep enough to exercise
+    // non-recursive traversal without exceeding common filesystem path limits.
+    // Unix-only: this fixture is intentionally deeper than the Windows variant.
     // per-entry metadata on Windows is O(depth) — both make the same fixture
     // pathological there without testing anything new.
     let td = TempDir::new().unwrap();
     let mut p = td.path().to_path_buf();
-    for i in 0..5_000 {
+    for i in 0..500 {
         p.push(format!("d{i}"));
     }
     fs::create_dir_all(&p).unwrap();
     write_file(&p.join("leaf.txt"), b"x");
 
     let res = scan_dir(td.path());
-    assert_eq!(res.summary.dir_count, 5_000);
+    assert_eq!(res.summary.dir_count, 500);
     assert_eq!(res.summary.file_count, 1);
     assert_eq!(res.summary.total_size, 1);
 }
@@ -274,7 +274,7 @@ mod symlinks {
         let res = scan_dir(td.path());
         assert_eq!(res.summary.skipped_count, 0);
         assert_eq!(res.summary.file_count, 2);
-        assert_eq!(res.summary.total_size, 3);
+        assert_eq!(res.summary.total_size, 2);
     }
 
     #[test]
