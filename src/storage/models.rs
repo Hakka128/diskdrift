@@ -81,6 +81,31 @@ pub struct EntryToWrite {
     pub dir_count: u64,
 }
 
+/// One `entries` row read back (sizes restored to `u64`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntryRecord {
+    pub path: String,
+    /// Directory-level aggregate on disk (`size`, `file_count`, `dir_count`).
+    pub size: u64,
+    pub file_count: u64,
+    pub dir_count: u64,
+}
+
+impl EntryRecord {
+    pub fn from_row(row: &Row<'_>) -> rusqlite::Result<Self> {
+        let path: String = row.get(0)?;
+        let size: i64 = row.get(1)?;
+        let file_count: i64 = row.get(2)?;
+        let dir_count: i64 = row.get(3)?;
+        Ok(Self {
+            path,
+            size: i64_to_u64(size),
+            file_count: i64_to_u64(file_count),
+            dir_count: i64_to_u64(dir_count),
+        })
+    }
+}
+
 /// Full payload for `Storage::save_snapshot`.
 #[derive(Debug, Clone)]
 pub struct NewSnapshot {

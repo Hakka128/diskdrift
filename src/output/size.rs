@@ -18,9 +18,29 @@ pub fn format(bytes: u64) -> String {
     format!("{value:.1} {}", UNITS[unit_idx])
 }
 
+/// Format a signed byte delta, always with an explicit sign: `+17.4 GB`,
+/// `-840 MB`, `0 B`. Input is `i128` so `u64` pairs can never overflow.
+pub fn format_signed(delta: i128) -> String {
+    let sign = if delta < 0 {
+        "-"
+    } else if delta > 0 {
+        "+"
+    } else {
+        ""
+    };
+    let abs = delta.unsigned_abs();
+    let body = if abs > u128::from(u64::MAX) {
+        // Unreachable for real filesystems (≥ 16 EiB); keep formatting total.
+        "16384.0 PB".to_string()
+    } else {
+        format(abs as u64)
+    };
+    format!("{sign}{body}")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::format;
+    use super::{format, format_signed};
 
     #[test]
     fn boundaries() {
@@ -43,5 +63,17 @@ mod tests {
     fn large_does_not_overflow_units() {
         // Still formats, clamps at PB.
         assert_eq!(format(u64::MAX), "16384.0 PB");
+    }
+
+    #[test]
+    fn signed_formatting() {
+        assert_eq!(format_signed(0), "0 B");
+        assert_eq!(format_signed(17_400_000_000), "+16.2 GB");
+        assert_eq!(format_signed(-17_400_000_000), "-16.2 GB");
+        assert_eq!(format_signed(1024), "+1.0 KB");
+        assert_eq!(format_signed(-1), "-1 B");
+        // i128 deltas beyond u64 still format without panic/overflow.
+        assert_eq!(format_signed(i128::from(u64::MAX) + 1), "+16384.0 PB");
+        assert_eq!(format_signed(-(i128::from(u64::MAX) + 1)), "-16384.0 PB");
     }
 }

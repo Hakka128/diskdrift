@@ -13,8 +13,11 @@
 
 pub mod cli;
 pub mod config;
+pub mod diff;
 pub mod error;
+pub mod inspect;
 pub mod output;
+pub mod pathutil;
 pub mod scanner;
 pub mod snapshot;
 pub mod storage;

@@ -11,9 +11,10 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 
 use crate::config;
 use crate::error::Result;
+use crate::pathutil::is_direct_child;
 
 use super::migrations;
-use super::models::{snapshot_column_list, NewSnapshot, SnapshotRecord};
+use super::models::{snapshot_column_list, EntryRecord, NewSnapshot, SnapshotRecord};
 
 /// Handle to the WhyBig database.
 #[derive(Debug)]
@@ -162,6 +163,108 @@ impl Storage {
             .optional()?)
     }
 
+    /// One snapshot by id.
+    pub fn get_snapshot(&self, id: i64) -> Result<Option<SnapshotRecord>> {
+        let sql = format!(
+            "SELECT {} FROM snapshots WHERE id = ?1",
+            snapshot_column_list()
+        );
+        Ok(self
+            .conn
+            .query_row(&sql, [id], SnapshotRecord::from_row)
+            .optional()?)
+    }
+
+    /// Snapshots of one tracked root, newest first. The `root` must match the
+    /// stored `root_path` exactly (it is the scanner-normalized key).
+    pub fn get_latest_snapshots_for_root(
+        &self,
+        root: &str,
+        limit: i64,
+    ) -> Result<Vec<SnapshotRecord>> {
+        let sql = format!(
+            "SELECT {} FROM snapshots WHERE root_path = ?1 ORDER BY id DESC LIMIT ?2",
+            snapshot_column_list()
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(rusqlite::params![root, limit], SnapshotRecord::from_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    /// One directory entry by path (PK lookup). `None` when the directory was
+    /// not present in that snapshot (added after / removed before).
+    pub fn get_entry(&self, snapshot_id: i64, path: &str) -> Result<Option<EntryRecord>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT path, size, file_count, dir_count FROM entries \
+                 WHERE snapshot_id = ?1 AND path = ?2",
+                rusqlite::params![snapshot_id, path],
+                EntryRecord::from_row,
+            )
+            .optional()?)
+    }
+
+    /// The **direct** children (exactly one level below `path`) of a snapshot.
+    ///
+    /// SQL `LIKE` narrows the scan to the subtree (escaped so `%`/`_`/`\` in
+    /// names cannot leak), and the component-wise [`is_direct_child`] filter
+    /// guarantees boundary correctness (`/a/bar` vs `/a/bar2`).
+    pub fn get_direct_children(&self, snapshot_id: i64, path: &str) -> Result<Vec<EntryRecord>> {
+        let pattern = subtree_like_pattern(path);
+        let mut stmt = self.conn.prepare(
+            "SELECT path, size, file_count, dir_count FROM entries \
+             WHERE snapshot_id = ?1 AND path LIKE ?2 ESCAPE '\\'",
+        )?;
+        let parent = Path::new(path);
+        let rows = stmt.query_map(
+            rusqlite::params![snapshot_id, pattern],
+            EntryRecord::from_row,
+        )?;
+        let mut out = Vec::new();
+        for row in rows {
+            let entry = row?;
+            // Defensive boundary check on top of the LIKE narrow.
+            if is_direct_child(Path::new(&entry.path), parent) {
+                out.push(entry);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Look up an entry treating the path as case-insensitive (NTFS folders are
+    /// case-insensitive). Exact match first; on Windows a `COLLATE NOCASE`
+    /// fallback covers ASCII case (drives, typical folders). If both miss,
+    /// returns `None` — the directory is not present in that snapshot.
+    pub fn get_entry_case_insensitive(
+        &self,
+        snapshot_id: i64,
+        path: &str,
+    ) -> Result<Option<EntryRecord>> {
+        if self.get_entry(snapshot_id, path)?.is_some() {
+            return self.get_entry(snapshot_id, path);
+        }
+        #[cfg(windows)]
+        {
+            let mut stmt = self.conn.prepare(
+                "SELECT path, size, file_count, dir_count FROM entries \
+                 WHERE snapshot_id = ?1 AND path = ?2 COLLATE NOCASE LIMIT 1",
+            )?;
+            let row = stmt
+                .query_row(rusqlite::params![snapshot_id, path], EntryRecord::from_row)
+                .optional()?;
+            Ok(row)
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(None)
+        }
+    }
+
     /// Number of directory entries recorded for one snapshot.
     pub fn snapshot_entries_count(&self, snapshot_id: i64) -> Result<i64> {
         Ok(self.conn.query_row(
@@ -184,4 +287,66 @@ fn configure(conn: &Connection) -> Result<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     Ok(())
+}
+
+/// Escape a string for use inside a `LIKE ... ESCAPE '\'` pattern.
+fn like_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 4);
+    for c in s.chars() {
+        if matches!(c, '\\' | '%' | '_') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Build the `LIKE ... ESCAPE '\'` pattern that narrows a query to `parent`
+/// and nothing shallower. Every stored child key is `parent` joined with the
+/// native separator and one name, so the pattern is `parent + sep + "%"` —
+/// except when `parent` already ends with the separator (filesystem roots like
+/// `/` or `C:\`), where the separator must not be repeated (`//%` matches
+/// nothing).
+fn subtree_like_pattern(parent: &str) -> String {
+    let parent_esc = like_escape(parent);
+    let sep = std::path::MAIN_SEPARATOR_STR;
+    let boundary = if parent.ends_with(sep) {
+        String::new()
+    } else {
+        like_escape(sep)
+    };
+    format!("{parent_esc}{boundary}%")
+}
+
+#[cfg(test)]
+mod pattern_tests {
+    use super::{like_escape, subtree_like_pattern};
+
+    #[test]
+    fn escapes_metacharacters_only() {
+        assert_eq!(like_escape("a/b"), "a/b");
+        assert_eq!(like_escape("a%_\\b"), "a\\%\\_\\\\b");
+    }
+
+    #[test]
+    fn normal_parent_has_boundary_separator() {
+        let pat = subtree_like_pattern("dir");
+        assert!(pat.ends_with('%'));
+        let literal = pat.trim_end_matches('%');
+        let sep_pair = like_escape(std::path::MAIN_SEPARATOR_STR);
+        assert!(
+            literal.ends_with(&sep_pair),
+            "pattern {pat} must bound the parent with the separator"
+        );
+    }
+
+    #[test]
+    fn root_parent_does_not_duplicate_separator() {
+        // "/" ends with the platform separator on Unix → no boundary appended.
+        #[cfg(not(windows))]
+        assert_eq!(subtree_like_pattern("/"), "/%");
+        // Windows drive roots likewise end with '\' → no duplicate separator.
+        #[cfg(windows)]
+        assert!(subtree_like_pattern(r"C:\").ends_with('%'));
+    }
 }

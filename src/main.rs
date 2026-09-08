@@ -11,9 +11,12 @@ use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 use whybig::cli::{Cli, Command};
 use whybig::config;
-use whybig::error::Result;
-use whybig::output::{human, size as fmt_size};
+use whybig::diff::{self, DiffSelection};
+use whybig::error::{Result, WhyBigError};
+use whybig::inspect;
+use whybig::output::{diff as render_diff, human, inspect as render_inspect, size as fmt_size};
 use whybig::snapshot::service::{SnapshotService, StatusReport};
+use whybig::storage::Storage;
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -21,6 +24,13 @@ fn main() -> ExitCode {
         Command::Init => run_init(&cli),
         Command::Snapshot { path } => run_snapshot(&cli, path),
         Command::Status => run_status(&cli),
+        Command::Diff {
+            from,
+            to,
+            limit,
+            all,
+        } => run_diff(&cli, *from, *to, *limit, *all),
+        Command::Inspect { path, limit } => run_inspect(&cli, path, *limit),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -89,6 +99,54 @@ fn run_snapshot(cli: &Cli, raw_path: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn run_diff(
+    cli: &Cli,
+    from: Option<i64>,
+    to: Option<i64>,
+    limit: Option<usize>,
+    all: bool,
+) -> Result<()> {
+    let data_dir = config::data_dir(cli.data_dir.as_deref())?;
+    let Some(storage) = Storage::open_if_exists(&data_dir)? else {
+        // Choosing a comparison on an uninitialized database is an error the
+        // user can act on (like `status`, but diff has nothing to show).
+        return Err(WhyBigError::NotInitialized);
+    };
+
+    let selection = match (from, to) {
+        (Some(f), Some(t)) => DiffSelection::Explicit { from: f, to: t },
+        (None, None) => DiffSelection::Default,
+        _ => unreachable!("clap requires --from and --to together"),
+    };
+    let (before, after) = diff::select_pair(&storage, selection)?;
+    let diff = diff::compute(&storage, &before, &after, &after.root_path)?;
+    print!("{}", render_diff::render(&diff, resolve_limit(limit, all)));
+    Ok(())
+}
+
+fn run_inspect(cli: &Cli, raw_path: &Path, limit: Option<usize>) -> Result<()> {
+    let data_dir = config::data_dir(cli.data_dir.as_deref())?;
+    let Some(storage) = Storage::open_if_exists(&data_dir)? else {
+        return Err(WhyBigError::NotInitialized);
+    };
+
+    let target = inspect::normalize_target(raw_path);
+    let (before, after) = diff::select_pair(&storage, DiffSelection::Default)?;
+    let root = after.root_path.clone();
+    let report = inspect::inspect(&storage, &before, &after, &root, &target)?;
+    print!("{}", render_inspect::render(&report, limit));
+    Ok(())
+}
+
+/// `--all` → no limit; otherwise `--limit N` or the default 10.
+fn resolve_limit(limit: Option<usize>, all: bool) -> Option<usize> {
+    if all {
+        None
+    } else {
+        Some(limit.unwrap_or(10))
+    }
 }
 
 fn run_status(cli: &Cli) -> Result<()> {

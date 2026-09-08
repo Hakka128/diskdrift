@@ -42,6 +42,32 @@ pub enum Command {
         path: PathBuf,
     },
 
+    /// Show what changed between two snapshots (top-level attribution).
+    Diff {
+        /// Older snapshot id to compare (requires --to).
+        #[arg(long, value_name = "ID", requires = "to")]
+        from: Option<i64>,
+        /// Newer snapshot id to compare (requires --from).
+        #[arg(long, value_name = "ID", requires = "from")]
+        to: Option<i64>,
+        /// Show at most N entries per group (default 10).
+        #[arg(long, value_name = "N")]
+        limit: Option<usize>,
+        /// Show every changed entry (overrides --limit).
+        #[arg(long)]
+        all: bool,
+    },
+
+    /// Drill down into a directory's changes ("what grew inside this?").
+    Inspect {
+        /// A directory inside the tracked root.
+        #[arg(value_name = "PATH")]
+        path: PathBuf,
+        /// Show at most N contributors (default: all).
+        #[arg(long, value_name = "N")]
+        limit: Option<usize>,
+    },
+
     /// Show the database and latest snapshot summary.
     Status,
 }

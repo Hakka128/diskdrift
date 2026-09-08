@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::config;
 use crate::error::{Result, WhyBigError};
-use crate::scanner::walker::is_under;
+use crate::pathutil::{is_under, normalize_abs};
 use crate::scanner::{self, ScanOptions, ScanResult};
 use crate::storage::models::{EntryToWrite, NewSnapshot, SnapshotRecord};
 use crate::storage::Storage;
@@ -183,28 +183,4 @@ fn absolutize(p: &Path) -> PathBuf {
             .unwrap_or_else(|_| p.to_path_buf())
     };
     normalize_abs(abs)
-}
-
-/// Strip the Windows `\\?\` verbatim prefix that `canonicalize` can produce, so
-/// recorded keys and the data-dir exclusion use the same spelling users and
-/// `%APPDATA%` use. No-op elsewhere.
-#[cfg(windows)]
-fn normalize_abs(p: PathBuf) -> PathBuf {
-    let s = p.to_string_lossy();
-    let s: String = if let Some(rest) = s.strip_prefix(r"\\?\") {
-        rest.to_string()
-    } else {
-        s.into_owned()
-    };
-    let s = if let Some(rest) = s.strip_prefix("UNC\\") {
-        format!(r"\\{}", rest)
-    } else {
-        s
-    };
-    PathBuf::from(s)
-}
-
-#[cfg(not(windows))]
-fn normalize_abs(p: PathBuf) -> PathBuf {
-    p
 }

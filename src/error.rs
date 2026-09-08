@@ -46,6 +46,24 @@ pub enum WhyBigError {
     #[error("no snapshots yet — run `whybig snapshot <path>` first")]
     NoSnapshots,
 
+    #[error("WhyBig is not initialized here. Run `whybig init` first")]
+    NotInitialized,
+
+    #[error("snapshot {0} not found")]
+    SnapshotNotFound(i64),
+
+    #[error("need at least two snapshots of root `{root}` to compare (only {count} available)")]
+    NotEnoughSnapshots { root: String, count: u64 },
+
+    #[error("Cannot compare snapshots from different roots.")]
+    CrossRootDiff,
+
+    #[error("path `{0}` is not a directory in either snapshot")]
+    PathNotInSnapshots(String),
+
+    #[error("path `{path}` is outside tracked root `{root}`")]
+    PathOutsideRoot { path: String, root: String },
+
     #[error("unexpected database content: {0}")]
     CorruptData(String),
 

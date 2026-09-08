@@ -12,8 +12,10 @@
 
 use std::fs::{self, ReadDir};
 use std::io;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::time::Instant;
+
+use crate::pathutil::is_under;
 
 use super::aggregate::DirAgg;
 use super::entry::DirEntry;
@@ -227,30 +229,4 @@ pub(crate) fn run(
 fn top_dir_only(stack: &mut [Frame]) {
     let top = stack.last_mut().expect("root frame is always alive");
     top.agg.add_dir_only();
-}
-
-/// Is `child` inside (or equal to) `ancestor`, comparing path components?
-/// Case-insensitive on Windows (case-sensitive elsewhere).
-/// `pub(crate)` because the snapshot service reuses it for root/policy checks.
-pub(crate) fn is_under(child: &Path, ancestor: &Path) -> bool {
-    let mut child_components = child.components();
-    for ac in ancestor.components() {
-        match child_components.next() {
-            Some(cc) if comp_eq(&cc, &ac) => {}
-            _ => return false,
-        }
-    }
-    true
-}
-
-#[cfg(windows)]
-fn comp_eq(a: &Component<'_>, b: &Component<'_>) -> bool {
-    // NTFS is case-insensitive; compare lossy-lowercased. Non-UTF8 names are
-    // vanishingly rare on Windows (UTF-16), so lossy is an acceptable guard.
-    a.as_os_str().to_string_lossy().to_lowercase() == b.as_os_str().to_string_lossy().to_lowercase()
-}
-
-#[cfg(not(windows))]
-fn comp_eq(a: &Component<'_>, b: &Component<'_>) -> bool {
-    a.as_os_str() == b.as_os_str()
 }
