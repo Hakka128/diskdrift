@@ -170,16 +170,23 @@ fn outside_tracked_root_is_rejected() {
 
 #[test]
 fn relative_path_is_joined_with_cwd() {
-    // normalize_target must produce an absolute path for relative inputs.
+    // Relative inputs must become absolute.
     let abs = inspect::normalize_target(Path::new("src"));
     assert!(abs.is_absolute());
     assert!(abs.ends_with("src"));
 
-    let absolute = inspect::normalize_target(Path::new(r"C:\WINDOWS"));
+    // Platform-native absolute paths must stay absolute.
     #[cfg(windows)]
-    assert_eq!(absolute, PathBuf::from(r"C:\WINDOWS")); // no filesystem access, no normalization
+    {
+        let absolute = inspect::normalize_target(Path::new(r"C:\WINDOWS"));
+        assert_eq!(absolute, PathBuf::from(r"C:\WINDOWS"));
+    }
+
     #[cfg(not(windows))]
-    assert_eq!(absolute, PathBuf::from(r"C:\WINDOWS"));
+    {
+        let absolute = inspect::normalize_target(Path::new("/tmp"));
+        assert_eq!(absolute, PathBuf::from("/tmp"));
+    }
 }
 
 #[test]
