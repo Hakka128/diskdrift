@@ -7,18 +7,18 @@
 
 use std::path::MAIN_SEPARATOR;
 
-use serde_json::{json, Value};
-use tempfile::TempDir;
-use whybig::diff::{self, DiffSelection};
-use whybig::history;
-use whybig::json::{
+use diskdrift::diff::{self, DiffSelection};
+use diskdrift::history;
+use diskdrift::json::{
     serialize, JsonDiffReportV1, JsonHistoryReportV1, JsonInspectReportV1, JsonStatusReportV1,
     JsonTopReportV1,
 };
-use whybig::snapshot::service::SnapshotService;
-use whybig::storage::models::{EntryToWrite, NewSnapshot, SnapshotRecord};
-use whybig::storage::Storage;
-use whybig::top::{self, TopMode};
+use diskdrift::snapshot::service::SnapshotService;
+use diskdrift::storage::models::{EntryToWrite, NewSnapshot, SnapshotRecord};
+use diskdrift::storage::Storage;
+use diskdrift::top::{self, TopMode};
+use serde_json::{json, Value};
+use tempfile::TempDir;
 
 /// Owned `(before, after)` pair for the fixed snapshots.
 fn select_pair_direct(storage: &Storage, id1: i64, id2: i64) -> (SnapshotRecord, SnapshotRecord) {
@@ -148,7 +148,7 @@ fn inspect_golden_schema_and_values() {
     let (before, after) = select_pair_direct(&storage, id1, id2);
     let root = after.root_path.clone();
     let target = key(&root, "b");
-    let report = whybig::inspect::inspect(
+    let report = diskdrift::inspect::inspect(
         &storage,
         &before,
         &after,

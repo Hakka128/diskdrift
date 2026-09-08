@@ -1,4 +1,4 @@
-//! Rendering for `whybig diff` (presentation only; the diff engine is in
+//! Rendering for `diskdrift diff` (presentation only; the diff engine is in
 //! `crate::diff`).
 
 use std::path::Path;

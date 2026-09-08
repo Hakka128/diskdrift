@@ -1,4 +1,4 @@
-# WhyBig Benchmarks
+# DiskDrift Benchmarks
 
 > Reproducible, honest wall-clock measurements of the core pipeline.
 > These are **environment-specific, noisy numbers** (OS cache, AV, SSD-state

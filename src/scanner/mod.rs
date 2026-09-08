@@ -22,7 +22,7 @@ pub use entry::DirEntry;
 pub struct ScanOptions {
     /// The directory to scan.
     pub root: PathBuf,
-    /// A subtree to ignore entirely (WhyBig's own data directory).
+    /// A subtree to ignore entirely (DiskDrift's own data directory).
     pub exclude: Option<PathBuf>,
     /// Maximum directory depth to descend into; `None` means unlimited.
     pub max_depth: Option<usize>,

@@ -1,11 +1,11 @@
 //! `--since` selection tests (UTC, deterministic, honest fallback).
 
 use chrono::{TimeZone, Utc};
+use diskdrift::diff::{self, DiffSelection, SinceInfo};
+use diskdrift::storage::models::{EntryToWrite, NewSnapshot};
+use diskdrift::storage::Storage;
+use diskdrift::top::{self, TopMode};
 use tempfile::TempDir;
-use whybig::diff::{self, DiffSelection, SinceInfo};
-use whybig::storage::models::{EntryToWrite, NewSnapshot};
-use whybig::storage::Storage;
-use whybig::top::{self, TopMode};
 
 const ROOT: &str = "R";
 
@@ -53,7 +53,7 @@ fn picks_snapshot_at_or_before_target() {
     let pair = diff::select_pair(
         &storage,
         DiffSelection::Since {
-            duration: whybig::since::DurationSecs(90 * 60),
+            duration: diskdrift::since::DurationSecs(90 * 60),
         },
     )
     .unwrap();
@@ -73,7 +73,7 @@ fn exact_target_timestamp_is_selected() {
     let pair = diff::select_pair(
         &storage,
         DiffSelection::Since {
-            duration: whybig::since::DurationSecs(4 * 3600),
+            duration: diskdrift::since::DurationSecs(4 * 3600),
         },
     )
     .unwrap();
@@ -88,7 +88,7 @@ fn no_snapshot_before_range_uses_earliest_and_flags() {
     let pair = diff::select_pair(
         &storage,
         DiffSelection::Since {
-            duration: whybig::since::DurationSecs(8 * 3600),
+            duration: diskdrift::since::DurationSecs(8 * 3600),
         },
     )
     .unwrap();
@@ -105,7 +105,7 @@ fn multiple_snapshots_around_target() {
     let pair = diff::select_pair(
         &storage,
         DiffSelection::Since {
-            duration: whybig::since::DurationSecs(3 * 3600),
+            duration: diskdrift::since::DurationSecs(3 * 3600),
         },
     )
     .unwrap();
@@ -127,7 +127,7 @@ fn timestamp_tie_breaks_deterministically_to_oldest() {
     let pair = diff::select_pair(
         &storage,
         DiffSelection::Since {
-            duration: whybig::since::DurationSecs(24 * 3600),
+            duration: diskdrift::since::DurationSecs(24 * 3600),
         },
     )
     .unwrap();
@@ -169,7 +169,7 @@ fn multiple_roots_do_not_cross() {
     let pair = diff::select_pair(
         &storage,
         DiffSelection::Since {
-            duration: whybig::since::DurationSecs(30 * 60),
+            duration: diskdrift::since::DurationSecs(30 * 60),
         },
     )
     .unwrap();
@@ -184,7 +184,7 @@ fn scoped_top_supports_since() {
     let report = top::top(
         &storage,
         DiffSelection::Since {
-            duration: whybig::since::DurationSecs(90 * 60),
+            duration: diskdrift::since::DurationSecs(90 * 60),
         },
         None,
         TopMode::Growth,
@@ -203,7 +203,7 @@ fn since_returns_clear_error_when_equal_to_latest_only() {
     let err = diff::select_pair(
         &storage,
         DiffSelection::Since {
-            duration: whybig::since::DurationSecs(30 * 60),
+            duration: diskdrift::since::DurationSecs(30 * 60),
         },
     )
     .unwrap_err();

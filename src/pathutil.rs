@@ -1,6 +1,6 @@
 //! Component-level path utilities.
 //!
-//! WhyBig never decides hierarchy from raw strings (`starts_with("/a/b")` would
+//! DiskDrift never decides hierarchy from raw strings (`starts_with("/a/b")` would
 //! collide with `/a/bar2`). Everything here compares path **components**, which
 //! also handles platform separators (Windows stored keys use `\`, which
 //! `std::path` parses on both `\` and `/`), drive letters, UNC prefixes and

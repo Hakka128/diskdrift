@@ -16,7 +16,7 @@ use crate::pathutil::is_direct_child;
 use super::migrations;
 use super::models::{snapshot_column_list, EntryRecord, NewSnapshot, SnapshotRecord};
 
-/// Handle to the WhyBig database.
+/// Handle to the DiskDrift database.
 #[derive(Debug)]
 pub struct Storage {
     conn: Connection,
@@ -46,7 +46,7 @@ impl Storage {
     }
 
     /// Like [`Storage::open`] but refuses to create the database: returns
-    /// `None` when the DB file does not exist yet (used by `whybig status` so
+    /// `None` when the DB file does not exist yet (used by `diskdrift status` so
     /// that merely inspecting status never materializes storage).
     pub fn open_if_exists(data_dir: &Path) -> Result<Option<Self>> {
         if !config::db_path(data_dir).exists() {
@@ -347,7 +347,7 @@ impl Storage {
     }
 
     /// Delete snapshots (entries cascade via FK). Single transaction: any
-    /// failure rolls back. Used by `whybig prune --apply`.
+    /// failure rolls back. Used by `diskdrift prune --apply`.
     pub fn delete_snapshots(&mut self, ids: &[i64]) -> Result<i64> {
         if ids.is_empty() {
             return Ok(0);

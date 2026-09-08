@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::diff::signed_delta;
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 use crate::pathutil::{is_under, normalize_target};
 use crate::storage::Storage;
 
@@ -36,7 +36,9 @@ pub struct HistoryReport {
 /// The root of the most recent snapshot — the default selection for
 /// history/ diff / inspect / top alike.
 pub fn latest_root(storage: &Storage) -> Result<String> {
-    let snap = storage.latest_snapshot()?.ok_or(WhyBigError::NoSnapshots)?;
+    let snap = storage
+        .latest_snapshot()?
+        .ok_or(DiskDriftError::NoSnapshots)?;
     Ok(snap.root_path)
 }
 
@@ -54,7 +56,7 @@ pub fn history(
         None => root.clone(),
     };
     if !is_under(&target, &root) {
-        return Err(WhyBigError::PathOutsideRoot {
+        return Err(DiskDriftError::PathOutsideRoot {
             path: target.to_string_lossy().into_owned(),
             root: root_str.clone(),
         });

@@ -4,7 +4,7 @@
 mod common;
 
 use common::new_harness;
-use whybig::json::{serialize, JsonSnapshotReportV1};
+use diskdrift::json::{serialize, JsonSnapshotReportV1};
 
 #[test]
 fn snapshot_json_is_valid_and_has_expected_fields() {
@@ -60,7 +60,7 @@ fn snapshot_json_keeps_unicode_root() {
     let root = td.path().join("数据-目录");
     std::fs::create_dir_all(&root).unwrap();
     let data_dir = td.path().join("data");
-    let mut service = whybig::snapshot::service::SnapshotService::new(data_dir).unwrap();
+    let mut service = diskdrift::snapshot::service::SnapshotService::new(data_dir).unwrap();
     let outcome = service.run_snapshot(&root, &mut |_| {}).unwrap();
     let doc = JsonSnapshotReportV1::build(&outcome);
     let v: serde_json::Value = serde_json::from_str(&serialize(&doc).unwrap()).unwrap();

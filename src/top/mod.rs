@@ -1,4 +1,4 @@
-//! `whybig top` — quick ranking of the biggest growers/shrinkers.
+//! `diskdrift top` — quick ranking of the biggest growers/shrinkers.
 //!
 //! This intentionally contains **no** own SQL or delta logic: it is a thin
 //! view over the Milestone 2 diff engine (see DESIGN-M3.md §2). `top` without
@@ -9,7 +9,7 @@
 use std::path::Path;
 
 use crate::diff::{self, DiffEntry, DiffSelection, SinceInfo};
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 use crate::pathutil::{is_under, normalize_target};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
@@ -53,7 +53,7 @@ pub fn top(
         Some(t) => {
             let target = normalize_target(t);
             if !is_under(&target, Path::new(&root)) {
-                return Err(WhyBigError::PathOutsideRoot {
+                return Err(DiskDriftError::PathOutsideRoot {
                     path: target.to_string_lossy().into_owned(),
                     root: root.clone(),
                 });

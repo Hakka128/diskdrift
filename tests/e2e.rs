@@ -1,4 +1,4 @@
-//! End-to-end tests that run the compiled `whybig` binary the way a user
+//! End-to-end tests that run the compiled `diskdrift` binary the way a user
 //! would, against a committed fixture tree and temp data directories.
 
 use std::fs;
@@ -7,8 +7,8 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-fn whybig_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_whybig")
+fn diskdrift_bin() -> &'static str {
+    env!("CARGO_BIN_EXE_diskdrift")
 }
 
 fn fixture_tree() -> PathBuf {
@@ -22,7 +22,7 @@ struct Run {
 }
 
 fn run(args: &[&str]) -> Run {
-    let out = Command::new(whybig_bin())
+    let out = Command::new(diskdrift_bin())
         .args(args)
         .output()
         .expect("binary runs");
@@ -42,7 +42,7 @@ fn init_is_idempotent_via_cli() {
     let r1 = run(&["--data-dir", data_s, "init"]);
     assert!(r1.status.success(), "stderr: {}", r1.stderr);
     assert!(
-        r1.stdout.contains("WhyBig is ready."),
+        r1.stdout.contains("DiskDrift is ready."),
         "stdout: {}",
         r1.stdout
     );
@@ -50,7 +50,7 @@ fn init_is_idempotent_via_cli() {
     // Second run must succeed and must not break the existing database.
     let r2 = run(&["--data-dir", data_s, "init"]);
     assert!(r2.status.success(), "stderr: {}", r2.stderr);
-    assert!(data.join("whybig.sqlite3").exists());
+    assert!(data.join("diskdrift.db").exists());
 }
 
 #[test]
@@ -380,7 +380,7 @@ fn history_and_top_accept_relative_paths_from_cwd() {
 
     // Run with cwd inside the root so a relative path resolves under it.
     let run_in = |args: &[&str]| {
-        let out = Command::new(whybig_bin())
+        let out = Command::new(diskdrift_bin())
             .current_dir(&root)
             .args(args)
             .output()

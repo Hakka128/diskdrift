@@ -3,7 +3,7 @@
 //! Only whole minutes/hours/days/weeks are accepted (no months/years/natural
 //! language, per DESIGN-M4 §1). All time math is integer UTC milliseconds.
 
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 
 /// A wall-clock duration in whole seconds (always positive).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,23 +21,23 @@ impl DurationSecs {
 pub fn parse(s: &str) -> Result<DurationSecs> {
     let s = s.trim();
     if s.is_empty() {
-        return Err(WhyBigError::BadDuration(s.to_string()));
+        return Err(DiskDriftError::BadDuration(s.to_string()));
     }
     let (num, unit) = s.split_at(s.len() - 1);
     let n: i64 = num
         .parse()
-        .map_err(|_| WhyBigError::BadDuration(s.to_string()))?;
+        .map_err(|_| DiskDriftError::BadDuration(s.to_string()))?;
     if n <= 0 {
-        return Err(WhyBigError::BadDuration(s.to_string()));
+        return Err(DiskDriftError::BadDuration(s.to_string()));
     }
     let secs = match unit {
         "m" => n.checked_mul(60),
         "h" => n.checked_mul(3600),
         "d" => n.checked_mul(86_400),
         "w" => n.checked_mul(604_800),
-        _ => return Err(WhyBigError::BadDuration(s.to_string())),
+        _ => return Err(DiskDriftError::BadDuration(s.to_string())),
     };
-    let secs = secs.ok_or_else(|| WhyBigError::BadDuration(s.to_string()))?;
+    let secs = secs.ok_or_else(|| DiskDriftError::BadDuration(s.to_string()))?;
     Ok(DurationSecs(secs))
 }
 

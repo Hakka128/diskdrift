@@ -12,15 +12,15 @@
 use std::fs;
 use std::path::PathBuf;
 
-use whybig::diff::{self, DiffSelection};
-use whybig::history;
-use whybig::inspect;
-use whybig::output::{
+use diskdrift::diff::{self, DiffSelection};
+use diskdrift::history;
+use diskdrift::inspect;
+use diskdrift::output::{
     diff as render_diff, history as render_history, human, inspect as render_inspect,
     size as fmt_size, top as render_top,
 };
-use whybig::snapshot::service::SnapshotService;
-use whybig::top::{self, TopMode};
+use diskdrift::snapshot::service::SnapshotService;
+use diskdrift::top::{self, TopMode};
 
 fn write_bytes(path: &std::path::Path, n: usize) {
     if let Some(p) = path.parent() {
@@ -34,8 +34,8 @@ fn main() {
         .nth(1)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("target/demo"));
-    // data dir lives inside the demo root → WhyBig excludes it from scans.
-    let data_dir = root.join(".whybig-data");
+    // data dir lives inside the demo root → DiskDrift excludes it from scans.
+    let data_dir = root.join(".diskdrift-data");
     let mut service = SnapshotService::new(data_dir.clone()).unwrap();
 
     // ── Stage A ──
@@ -44,7 +44,7 @@ fn main() {
     write_bytes(&root.join("downloads/movie.bin"), 2_000);
     write_bytes(&root.join("projects/foo/code.txt"), 300);
 
-    println!("$ whybig snapshot {}", root.display());
+    println!("$ diskdrift snapshot {}", root.display());
     let a = service.run_snapshot(&root, &mut |_| {}).unwrap();
     println!("{} files", human::number(a.file_count));
     println!("{} directories", human::number(a.dir_count));
@@ -62,7 +62,10 @@ fn main() {
     fs::remove_dir_all(root.join("projects")).unwrap();
 
     println!();
-    println!("$ whybig snapshot {}   # a few days later", root.display());
+    println!(
+        "$ diskdrift snapshot {}   # a few days later",
+        root.display()
+    );
     let b = service.run_snapshot(&root, &mut |_| {}).unwrap();
     println!("{} files", human::number(b.file_count));
     println!("{} directories", human::number(b.dir_count));
@@ -75,11 +78,11 @@ fn main() {
     );
 
     // ── diff ──
-    let storage = whybig::storage::Storage::open(&data_dir).unwrap();
+    let storage = diskdrift::storage::Storage::open(&data_dir).unwrap();
     let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
     let d = diff::compute_pair(&storage, &pair, &pair.after.root_path).unwrap();
     println!();
-    println!("$ whybig diff");
+    println!("$ diskdrift diff");
     print!("{}", render_diff::render(&d, Some(10)));
 
     // ── inspect ──
@@ -92,16 +95,16 @@ fn main() {
         &docker,
     )
     .unwrap();
-    println!("$ whybig inspect {}", docker.display());
+    println!("$ diskdrift inspect {}", docker.display());
     print!("{}", render_inspect::render(&report, None));
 
     // ── top ──
     let t = top::top(&storage, DiffSelection::Default, None, TopMode::Growth).unwrap();
-    println!("$ whybig top");
+    println!("$ diskdrift top");
     print!("{}", render_top::render(&t, Some(10)));
 
     // ── history —————
     let h = history::history(&storage, None, 20).unwrap();
-    println!("$ whybig history");
+    println!("$ diskdrift history");
     print!("{}", render_history::render(&h));
 }

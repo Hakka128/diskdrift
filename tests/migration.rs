@@ -3,11 +3,11 @@
 
 use std::path::PathBuf;
 
+use diskdrift::config;
+use diskdrift::storage::migrations::schema_version;
+use diskdrift::storage::Storage;
 use rusqlite::Connection;
 use tempfile::TempDir;
-use whybig::config;
-use whybig::storage::migrations::schema_version;
-use whybig::storage::Storage;
 
 const V1_SQL: &str = "\
     CREATE TABLE snapshots (\
@@ -138,7 +138,7 @@ fn newer_schema_is_rejected_without_modification() {
 
     let err = Storage::open(&data_dir).unwrap_err();
     assert!(
-        err.to_string().contains("newer version of WhyBig"),
+        err.to_string().contains("newer version of DiskDrift"),
         "err: {err}"
     );
 

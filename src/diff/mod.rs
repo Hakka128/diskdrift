@@ -4,15 +4,15 @@
 //! terminals or rendering (see `output::diff` for that).
 //!
 //! Attribution model (see `DESIGN-M2.md` §4): a diff lists only the **direct
-//! children** of the scope directory. Diff (`whybig diff`) uses the tracked
-//! root as scope → top-level attribution. Inspect (`whybig inspect <path>`)
+//! children** of the scope directory. Diff (`diskdrift diff`) uses the tracked
+//! root as scope → top-level attribution. Inspect (`diskdrift inspect <path>`)
 //! uses the target as scope → next-level drill-down. This is what keeps the
 //! tool a "what got big" debugger instead of a dump of every delta.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 use crate::pathutil::{is_direct_child, paths_equal};
 use crate::since::{human_ago, DurationSecs};
 use crate::storage::models::SnapshotRecord;
@@ -44,7 +44,7 @@ pub struct DiffEntry {
 /// The result of comparing two snapshots at a scope.
 #[derive(Debug, Clone)]
 pub struct SnapshotDiff {
-    /// The scope directory (tracked root for `whybig diff`).
+    /// The scope directory (tracked root for `diskdrift diff`).
     pub root: String,
     pub before: SnapshotRecord,
     pub after: SnapshotRecord,
@@ -239,12 +239,12 @@ pub fn select_pair(storage: &Storage, selection: DiffSelection) -> Result<Select
         DiffSelection::Explicit { from, to } => {
             let before = storage
                 .get_snapshot(from)?
-                .ok_or(WhyBigError::SnapshotNotFound(from))?;
+                .ok_or(DiskDriftError::SnapshotNotFound(from))?;
             let after = storage
                 .get_snapshot(to)?
-                .ok_or(WhyBigError::SnapshotNotFound(to))?;
+                .ok_or(DiskDriftError::SnapshotNotFound(to))?;
             if !paths_equal(Path::new(&before.root_path), Path::new(&after.root_path)) {
-                return Err(WhyBigError::CrossRootDiff);
+                return Err(DiskDriftError::CrossRootDiff);
             }
             Ok(SelectedPair {
                 before,
@@ -253,11 +253,13 @@ pub fn select_pair(storage: &Storage, selection: DiffSelection) -> Result<Select
             })
         }
         DiffSelection::Default => {
-            let latest = storage.latest_snapshot()?.ok_or(WhyBigError::NoSnapshots)?;
+            let latest = storage
+                .latest_snapshot()?
+                .ok_or(DiskDriftError::NoSnapshots)?;
             let root = latest.root_path.clone();
             let snaps = storage.get_latest_snapshots_for_root(&root, 2)?;
             if snaps.len() < 2 {
-                return Err(WhyBigError::NotEnoughSnapshots {
+                return Err(DiskDriftError::NotEnoughSnapshots {
                     root,
                     count: snaps.len() as u64,
                 });
@@ -270,7 +272,9 @@ pub fn select_pair(storage: &Storage, selection: DiffSelection) -> Result<Select
             })
         }
         DiffSelection::Since { duration } => {
-            let latest = storage.latest_snapshot()?.ok_or(WhyBigError::NoSnapshots)?;
+            let latest = storage
+                .latest_snapshot()?
+                .ok_or(DiskDriftError::NoSnapshots)?;
             let root = latest.root_path.clone();
             let requested_target_ms = latest.created_at_ms.saturating_sub(duration.as_ms());
 
@@ -280,7 +284,7 @@ pub fn select_pair(storage: &Storage, selection: DiffSelection) -> Result<Select
                 Some(s) => s,
                 None => storage
                     .earliest_snapshot_for_root(&root)?
-                    .ok_or(WhyBigError::NoSnapshots)?,
+                    .ok_or(DiskDriftError::NoSnapshots)?,
             };
             let used_earliest = chosen.created_at_ms > requested_target_ms;
 
@@ -293,7 +297,7 @@ pub fn select_pair(storage: &Storage, selection: DiffSelection) -> Result<Select
             // `after` must be strictly newer than `before` for a meaningful
             // window; if the same snapshot is both (single snapshot), error.
             if chosen.id >= latest.id {
-                return Err(WhyBigError::NoEarlierSnapshot {
+                return Err(DiskDriftError::NoEarlierSnapshot {
                     root,
                     requested: since.requested_human(),
                 });

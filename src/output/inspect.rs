@@ -1,4 +1,4 @@
-//! Rendering for `whybig inspect` (presentation only; the inspect service is
+//! Rendering for `diskdrift inspect` (presentation only; the inspect service is
 //! in `crate::inspect`).
 
 use std::path::Path;

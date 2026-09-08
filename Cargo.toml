@@ -1,17 +1,18 @@
 [package]
-name = "whybig"
+name = "diskdrift"
 version = "0.1.0"
 edition = "2021"
-description = "WhyBig: disk space growth tracker — helps you answer \"what got big?\"."
+description = "A local-first disk growth debugger that shows what got big over time."
 license = "MIT"
-repository = "https://github.com/whybig/whybig"
-keywords = ["disk", "storage", "snapshot", "cli", "du"]
+repository = "https://github.com/diskdrift/diskdrift"
+keywords = ["disk", "filesystem", "storage", "cli", "monitoring"]
 categories = ["command-line-utilities", "filesystem"]
+readme = "README.md"
 
 [dependencies]
 anyhow = "1"
 chrono = "0.4"
-clap = { version = "4", features = ["derive", "env"] }
+clap = { version = "4", features = ["derive"] }
 indicatif = "0.17"
 rusqlite = { version = "0.31", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

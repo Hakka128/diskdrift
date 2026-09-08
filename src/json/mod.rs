@@ -1,4 +1,4 @@
-//! Stable, versioned JSON API for WhyBig (`--json`).
+//! Stable, versioned JSON API for DiskDrift (`--json`).
 //!
 //! These are **independent public structs** — internal domain structs are
 //! never serialized directly, so the schema cannot drift with refactors.
@@ -11,7 +11,7 @@
 use serde::Serialize;
 
 use crate::diff::{DiffEntry, DiffState, SinceInfo, SnapshotDiff};
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 use crate::history::HistoryReport;
 use crate::inspect::InspectReport;
 use crate::retention::PrunePlan;
@@ -67,7 +67,7 @@ pub struct JsonDeltaEntryV1 {
     pub state: JsonStateV1,
 }
 
-/// `whybig diff --json`
+/// `diskdrift diff --json`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct JsonDiffReportV1 {
     pub schema_version: u8,
@@ -84,7 +84,7 @@ pub struct JsonDiffReportV1 {
     pub since: Option<JsonSinceV1>,
 }
 
-/// `whybig inspect <path> --json`
+/// `diskdrift inspect <path> --json`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct JsonInspectReportV1 {
     pub schema_version: u8,
@@ -100,7 +100,7 @@ pub struct JsonInspectReportV1 {
     pub contributors: Vec<JsonDeltaEntryV1>,
 }
 
-/// One point of `whybig history --json`
+/// One point of `diskdrift history --json`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct JsonHistoryPointV1 {
     pub snapshot_id: i64,
@@ -110,7 +110,7 @@ pub struct JsonHistoryPointV1 {
     pub delta_from_previous_bytes: Option<i128>,
 }
 
-/// `whybig history --json`
+/// `diskdrift history --json`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct JsonHistoryReportV1 {
     pub schema_version: u8,
@@ -121,7 +121,7 @@ pub struct JsonHistoryReportV1 {
     pub total_delta_bytes: i128,
 }
 
-/// `whybig top --json` (mode is "grew" or "shrank")
+/// `diskdrift top --json` (mode is "grew" or "shrank")
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct JsonTopReportV1 {
     pub schema_version: u8,
@@ -136,7 +136,7 @@ pub struct JsonTopReportV1 {
     pub since: Option<JsonSinceV1>,
 }
 
-/// `whybig status --json`
+/// `diskdrift status --json`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct JsonStatusReportV1 {
     pub schema_version: u8,
@@ -305,7 +305,7 @@ impl JsonStatusReportV1 {
     }
 }
 
-/// `whybig snapshot <path> --json`
+/// `diskdrift snapshot <path> --json`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct JsonSnapshotReportV1 {
     pub schema_version: u8,
@@ -350,7 +350,7 @@ impl JsonSnapshotReportV1 {
     }
 }
 
-/// Per-root entry of `whybig prune --json`.
+/// Per-root entry of `diskdrift prune --json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct JsonPruneRootV1 {
     pub root: String,
@@ -359,7 +359,7 @@ pub struct JsonPruneRootV1 {
     pub remove: Vec<i64>,
 }
 
-/// `whybig prune --json` / `prune --apply --json`
+/// `diskdrift prune --json` / `prune --apply --json`
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct JsonPruneReportV1 {
     pub schema_version: u8,
@@ -422,5 +422,5 @@ impl JsonPruneReportV1 {
 /// Serialize a report to compact JSON. The CLI prints exactly this value in
 /// JSON mode, so stdout stays single-document and parseable.
 pub fn serialize<T: Serialize>(value: &T) -> Result<String> {
-    serde_json::to_string(value).map_err(|e| WhyBigError::Json(e.to_string()))
+    serde_json::to_string(value).map_err(|e| DiskDriftError::Json(e.to_string()))
 }

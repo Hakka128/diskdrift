@@ -6,14 +6,14 @@
 
 use rusqlite::Connection;
 
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 
 /// Migrations, indexed by version-1. Never edit a released script — append a
 /// new one instead.
 const MIGRATIONS: &[&str] = &[
     // v1 — initial schema (see DESIGN.md §5 for rationale of the two extra
     // columns vs. the suggested schema: `skipped_count` is required by
-    // `whybig status`, `size_kind` reserves the allocated-size dimension).
+    // `diskdrift status`, `size_kind` reserves the allocated-size dimension).
     "\
     CREATE TABLE snapshots (\
         id INTEGER PRIMARY KEY,\
@@ -53,12 +53,12 @@ pub fn latest_version() -> i64 {
 }
 
 /// Bring `conn` up to the latest schema version. Idempotent; refuses databases
-/// from a NEWER WhyBig.
+/// from a NEWER DiskDrift.
 pub fn migrate(conn: &mut Connection) -> Result<()> {
     let current: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
 
     if current > latest_version() {
-        return Err(WhyBigError::NewerSchema);
+        return Err(DiskDriftError::NewerSchema);
     }
 
     for (idx, script) in MIGRATIONS.iter().enumerate() {
@@ -73,7 +73,7 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
             tx.commit()?;
             Ok(())
         };
-        apply().map_err(|e| WhyBigError::Migration(format!("v{target}: {e}")))?;
+        apply().map_err(|e| DiskDriftError::Migration(format!("v{target}: {e}")))?;
     }
     Ok(())
 }

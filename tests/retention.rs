@@ -4,11 +4,11 @@
 //! deterministic without sleeping.
 
 use chrono::{TimeZone, Utc};
+use diskdrift::json::JsonPruneReportV1;
+use diskdrift::retention::{build_plan, PruneExecutor, PrunePlan, RetentionPolicy};
+use diskdrift::storage::models::{EntryToWrite, NewSnapshot};
+use diskdrift::storage::Storage;
 use tempfile::TempDir;
-use whybig::json::JsonPruneReportV1;
-use whybig::retention::{build_plan, PruneExecutor, PrunePlan, RetentionPolicy};
-use whybig::storage::models::{EntryToWrite, NewSnapshot};
-use whybig::storage::Storage;
 
 const NOW: i64 = 1_768_032_000_000; // 2026-01-10T00:00:00Z
 
@@ -302,7 +302,7 @@ fn executor_refuses_to_delete_a_root_latest() {
     let plan = PrunePlan {
         generated_at_ms: NOW,
         policy: RetentionPolicy::default(),
-        roots: vec![whybig::retention::RootPrunePlan {
+        roots: vec![diskdrift::retention::RootPrunePlan {
             root: "R".to_string(),
             snapshot_count: 1,
             keep_recent: vec![],
@@ -326,7 +326,7 @@ fn prune_json_preview_and_applied() {
     let before = storage.count_snapshots().unwrap();
 
     let doc = JsonPruneReportV1::build(&plan, false, before, storage.database_size(), None);
-    let text = whybig::json::serialize(&doc).unwrap();
+    let text = diskdrift::json::serialize(&doc).unwrap();
     let v: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(v["schema_version"], 1);
     assert_eq!(v["command"], "prune");

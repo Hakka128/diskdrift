@@ -1,4 +1,4 @@
-//! Minimal, honest benchmark runner for WhyBig's core pipeline.
+//! Minimal, honest benchmark runner for DiskDrift's core pipeline.
 //!
 //! Measures (in-process, wall-clock):
 //!   generation, scanner wall time + files/sec + dirs/sec, DB write time +
@@ -13,13 +13,13 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use clap::{Parser, ValueEnum};
+use diskdrift::benchtree::{generate_tree, BenchMode, GenConfig};
+use diskdrift::diff::{self, DiffSelection};
+use diskdrift::history;
+use diskdrift::scanner::{self, ScanOptions};
+use diskdrift::snapshot::service::SnapshotService;
+use diskdrift::storage::Storage;
 use tempfile::TempDir;
-use whybig::benchtree::{generate_tree, BenchMode, GenConfig};
-use whybig::diff::{self, DiffSelection};
-use whybig::history;
-use whybig::scanner::{self, ScanOptions};
-use whybig::snapshot::service::SnapshotService;
-use whybig::storage::Storage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum ModeArg {
@@ -44,7 +44,7 @@ impl From<ModeArg> for BenchMode {
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "whybig-bench",
+    name = "diskdrift-bench",
     about = "Benchmark scanner + storage + diff + history in-process"
 )]
 struct Cli {
@@ -90,7 +90,7 @@ fn main() {
         force: true, // the runner owns this directory in the bench case
     };
 
-    println!("=== WhyBig bench ===");
+    println!("=== DiskDrift bench ===");
     println!(
         "files={} mode={:?} seed={} target={} toolchain=release",
         cli.files,
@@ -133,7 +133,7 @@ fn main() {
     );
 
     // ── persist (two snapshots so diff/history have a pair) ───────────────
-    let data_dir = target.join(".whybig-bench-data");
+    let data_dir = target.join(".diskdrift-bench-data");
     let mut service = SnapshotService::new(data_dir.clone()).expect("service");
 
     let t2 = Instant::now();

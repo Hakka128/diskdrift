@@ -1,0 +1,88 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*" # e.g. v0.1.0-rc.1 or v0.1.0
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: zip
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            ext: tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            ext: tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Quick tests (native host)
+        run: cargo test
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Smoke (version + help)
+        run: |
+          ./target/${{ matrix.target }}/release/diskdrift --version
+          ./target/${{ matrix.target }}/release/diskdrift --help >/dev/null
+        shell: bash
+
+      - name: Stage artifacts
+        shell: bash
+        run: |
+          mkdir -p stage
+          cp ./target/${{ matrix.target }}/release/diskdrift"$( [ "${{ matrix.os }}" = "windows-latest" ] && echo .exe || echo )" stage/
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="diskdrift-v${GITHUB_REF_NAME#v}-${{ matrix.target }}"
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            (cd stage && tar -a -cf "../${NAME}.zip" diskdrift.exe)
+          else
+            (cd stage && tar -czf "../${NAME}.tar.gz" diskdrift)
+          fi
+          sha256sum "${NAME}.${EXT:-${{ matrix.ext }}}" > "${NAME}.sha256"
+        env:
+          EXT: ${{ matrix.ext }}
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            diskdrift-v${{ github.ref_name }}-*.zip
+            diskdrift-v${{ github.ref_name }}-*.tar.gz
+            diskdrift-v${{ github.ref_name }}-*.sha256

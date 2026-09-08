@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::diff::{merge_children_deltas, signed_delta, DiffEntry};
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 use crate::pathutil::{is_under, normalize_lexical};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
@@ -56,7 +56,7 @@ pub fn inspect(
     let target = normalize_lexical(target);
     let target_str = target.to_string_lossy().into_owned();
     if !is_under(&target, Path::new(root)) {
-        return Err(WhyBigError::PathOutsideRoot {
+        return Err(DiskDriftError::PathOutsideRoot {
             path: target_str,
             root: root.to_string(),
         });
@@ -65,7 +65,7 @@ pub fn inspect(
     let after_entry = lookup(storage, after, &target_str)?;
     let before_entry = lookup(storage, before, &target_str)?;
     if before_entry.is_none() && after_entry.is_none() {
-        return Err(WhyBigError::PathNotInSnapshots(target_str));
+        return Err(DiskDriftError::PathNotInSnapshots(target_str));
     }
 
     // Use the *stored* spelling as the scope for child queries so they match

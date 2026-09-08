@@ -8,9 +8,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use diskdrift::snapshot::service::SnapshotService;
+use diskdrift::storage::Storage;
 use tempfile::TempDir;
-use whybig::snapshot::service::SnapshotService;
-use whybig::storage::Storage;
 
 pub struct Harness {
     pub _td: TempDir,

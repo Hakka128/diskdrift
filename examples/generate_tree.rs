@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, ValueEnum};
-use whybig::benchtree::{generate_tree, BenchMode, GenConfig};
+use diskdrift::benchtree::{generate_tree, BenchMode, GenConfig};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum ModeArg {
@@ -31,7 +31,7 @@ impl From<ModeArg> for BenchMode {
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "whybig-generate-tree",
+    name = "diskdrift-generate-tree",
     about = "Generate a deterministic benchmark tree"
 )]
 struct Cli {

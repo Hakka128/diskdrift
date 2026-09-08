@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::config;
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 use crate::pathutil::{is_under, normalize_abs};
 use crate::scanner::{self, ScanOptions, ScanResult};
 use crate::storage::models::{EntryToWrite, NewSnapshot, SnapshotRecord};
@@ -28,7 +28,7 @@ pub struct SnapshotOutcome {
     pub warnings: Vec<crate::scanner::ScanWarning>,
 }
 
-/// What `whybig status` reports.
+/// What `diskdrift status` reports.
 #[derive(Debug, Clone)]
 pub struct StatusReport {
     pub initialized: bool,
@@ -62,13 +62,13 @@ impl SnapshotService {
         } else {
             std::env::current_dir()?.join(raw)
         };
-        let canon = std::fs::canonicalize(&abs).map_err(|e| WhyBigError::RootUnavailable {
+        let canon = std::fs::canonicalize(&abs).map_err(|e| DiskDriftError::RootUnavailable {
             path: abs.clone(),
             reason: e,
         })?;
         let canon = normalize_abs(canon);
         if !canon.is_dir() {
-            return Err(WhyBigError::RootNotADirectory(canon));
+            return Err(DiskDriftError::RootNotADirectory(canon));
         }
         Ok(canon)
     }
@@ -97,7 +97,7 @@ impl SnapshotService {
             max_depth: None,
         };
         let result =
-            scanner::scan(&options, on_progress).map_err(|e| WhyBigError::RootUnavailable {
+            scanner::scan(&options, on_progress).map_err(|e| DiskDriftError::RootUnavailable {
                 path: root.clone(),
                 reason: e,
             })?;
@@ -118,11 +118,11 @@ impl SnapshotService {
         })
     }
 
-    /// Reject scanning a root that lives inside the WhyBig data directory.
+    /// Reject scanning a root that lives inside the DiskDrift data directory.
     fn check_root_not_in_data_dir(&self, root: &Path) -> Result<()> {
         let data_dir_abs = absolutize(&self.data_dir);
         if is_under(root, &data_dir_abs) {
-            return Err(WhyBigError::RootInsideDataDir(root.to_path_buf()));
+            return Err(DiskDriftError::RootInsideDataDir(root.to_path_buf()));
         }
         Ok(())
     }

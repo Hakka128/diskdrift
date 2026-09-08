@@ -1,16 +1,16 @@
-//! Snapshot retention: plan-then-apply pruning of WhyBig's OWN history.
+//! Snapshot retention: plan-then-apply pruning of DiskDrift's OWN history.
 //!
 //! The planner is a pure function (no DB writes) producing a [`PrunePlan`];
 //! only [`PruneExecutor`] mutates the database, inside a single transaction, so
 //! a failure rolls back the whole prune. Retention NEVER deletes user files —
-//! it only deletes `snapshots` rows from WhyBig's own SQLite database.
+//! it only deletes `snapshots` rows from DiskDrift's own SQLite database.
 //!
 //! Buckets are UTC: daily = epoch-day, weekly = epoch-day/7 (a documented
 //! 7-day bucket, deliberately not ISO-week, to avoid year/53 edge complexity).
 
 use std::collections::BTreeMap;
 
-use crate::error::{Result, WhyBigError};
+use crate::error::{DiskDriftError, Result};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
 
@@ -45,7 +45,7 @@ impl RetentionPolicy {
             && self.daily_days > self.recent_days
             && self.weekly_days > self.daily_days;
         if !ok {
-            return Err(WhyBigError::BadPolicy(format!(
+            return Err(DiskDriftError::BadPolicy(format!(
                 "recent_days={} daily_days={} weekly_days={} (need 1 <= recent < daily < weekly)",
                 self.recent_days, self.daily_days, self.weekly_days
             )));
@@ -264,7 +264,7 @@ impl PruneExecutor {
         let remove_set: std::collections::HashSet<i64> = ids.iter().copied().collect();
         for (root, latest_id) in &latest_id_by_root {
             if remove_set.contains(latest_id) {
-                return Err(WhyBigError::PruneSafety(format!(
+                return Err(DiskDriftError::PruneSafety(format!(
                     "refusing to delete the latest snapshot of root `{root}`"
                 )));
             }

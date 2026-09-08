@@ -3,11 +3,11 @@
 
 use std::path::{Path, PathBuf};
 
+use diskdrift::scanner::{scan, ScanOptions};
+use diskdrift::snapshot::service::{SnapshotService, StatusReport};
+use diskdrift::storage::models::{i64_to_u64, u64_to_i64, NewSnapshot};
+use diskdrift::storage::{migrations, Storage};
 use tempfile::TempDir;
-use whybig::scanner::{scan, ScanOptions};
-use whybig::snapshot::service::{SnapshotService, StatusReport};
-use whybig::storage::models::{i64_to_u64, u64_to_i64, NewSnapshot};
-use whybig::storage::{migrations, Storage};
 
 /// Scan a fixture dir and save it via the service, returning the outcome.
 fn snapshot_fixture(service: &mut SnapshotService, dir: &Path) -> i64 {
@@ -240,7 +240,7 @@ fn corrupt_database_file_yields_a_clear_error() {
     std::fs::create_dir_all(&data_dir).unwrap();
     // Write garbage where the DB should be.
     std::fs::write(
-        data_dir.join("whybig.sqlite3"),
+        data_dir.join("diskdrift.db"),
         b"this is not a sqlite database",
     )
     .unwrap();
@@ -261,7 +261,7 @@ fn unwritable_database_reports_a_clear_open_error() {
     let data_dir = td.path().join("data");
     let _ = Storage::init(&data_dir).unwrap();
 
-    let db = data_dir.join("whybig.sqlite3");
+    let db = data_dir.join("diskdrift.db");
     // mode 000 denies even open(O_RDWR) → deterministic SQLITE_CANTOPEN.
     std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o000)).unwrap();
 
@@ -298,7 +298,7 @@ fn status_reports_not_initialized_without_creating_database() {
     assert!(!report.initialized);
     assert_eq!(report.snapshot_count, 0);
     // status must not materialize the database
-    assert!(!data_dir.join("whybig.sqlite3").exists());
+    assert!(!data_dir.join("diskdrift.db").exists());
 }
 
 #[test]
@@ -360,7 +360,7 @@ fn resolve_root_handles_absolute_relative_and_current_dir() {
 fn snapshot_excludes_its_own_data_dir_and_rejects_reverse() {
     let td = TempDir::new().unwrap();
     let root = td.path().join("proj");
-    let data_dir = root.join(".whybig-data"); // data dir is *inside* the scan root
+    let data_dir = root.join(".diskdrift-data"); // data dir is *inside* the scan root
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("real.txt"), vec![1u8; 50]).unwrap();
 
@@ -380,7 +380,9 @@ fn snapshot_excludes_its_own_data_dir_and_rejects_reverse() {
 
     // Reverse: a root *inside* the data dir is rejected outright.
     let err = service.run_snapshot(&data_dir, &mut |_| {}).unwrap_err();
-    assert!(err.to_string().contains("inside the WhyBig data directory"));
+    assert!(err
+        .to_string()
+        .contains("inside the DiskDrift data directory"));
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -398,7 +400,7 @@ fn plain_path(p: &Path) -> String {
 
 fn dummy_snapshot(data_dir: &Path, n_entries: i64) -> NewSnapshot {
     let entries = (0..n_entries)
-        .map(|i| whybig::storage::models::EntryToWrite {
+        .map(|i| diskdrift::storage::models::EntryToWrite {
             path: format!("dir{}", i),
             size: 1_000 + i as u64,
             file_count: 2,

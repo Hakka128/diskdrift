@@ -10,13 +10,13 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 /// The result type used across the library.
-pub type Result<T> = std::result::Result<T, WhyBigError>;
+pub type Result<T> = std::result::Result<T, DiskDriftError>;
 
 /// All user-visible failures.
 #[derive(Debug, Error)]
-pub enum WhyBigError {
-    /// Cannot determine (or construct) the WhyBig data directory.
-    #[error("cannot resolve the WhyBig data directory: {0}")]
+pub enum DiskDriftError {
+    /// Cannot determine (or construct) the DiskDrift data directory.
+    #[error("cannot resolve the DiskDrift data directory: {0}")]
     DataDir(String),
 
     /// The snapshot root cannot be used (missing / not a dir / vanished).
@@ -30,9 +30,9 @@ pub enum WhyBigError {
     #[error("cannot scan root `{0}`: not a directory")]
     RootNotADirectory(PathBuf),
 
-    /// The chosen root is inside the WhyBig data directory itself.
+    /// The chosen root is inside the DiskDrift data directory itself.
     #[error(
-        "root `{0}` lies inside the WhyBig data directory; scanning it would \
+        "root `{0}` lies inside the DiskDrift data directory; scanning it would \
          record the database while it grows. Choose a different root"
     )]
     RootInsideDataDir(PathBuf),
@@ -43,10 +43,10 @@ pub enum WhyBigError {
     #[error("database migration failed: {0}")]
     Migration(String),
 
-    #[error("no snapshots yet — run `whybig snapshot <path>` first")]
+    #[error("no snapshots yet — run `diskdrift snapshot <path>` first")]
     NoSnapshots,
 
-    #[error("WhyBig is not initialized here. Run `whybig init` first")]
+    #[error("DiskDrift is not initialized here. Run `diskdrift init` first")]
     NotInitialized,
 
     #[error("snapshot {0} not found")]
@@ -79,7 +79,7 @@ pub enum WhyBigError {
     #[error("refusing to prune: {0}")]
     PruneSafety(String),
 
-    #[error("Database was created by a newer version of WhyBig. Please update WhyBig.")]
+    #[error("Database was created by a newer version of DiskDrift. Please update DiskDrift.")]
     NewerSchema,
 
     #[error("unexpected database content: {0}")]

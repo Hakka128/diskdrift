@@ -1,4 +1,4 @@
-//! SQLite persistence for WhyBig snapshots.
+//! SQLite persistence for DiskDrift snapshots.
 
 pub mod database;
 pub mod migrations;

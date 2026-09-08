@@ -9,23 +9,23 @@ use std::time::Duration;
 
 use chrono::{TimeZone, Utc};
 use clap::Parser;
-use indicatif::{ProgressBar, ProgressStyle};
-use whybig::cli::{Cli, Command};
-use whybig::config;
-use whybig::diff::{self, DiffSelection};
-use whybig::error::{Result, WhyBigError};
-use whybig::history;
-use whybig::inspect;
-use whybig::json as jsonapi;
-use whybig::output::{
+use diskdrift::cli::{Cli, Command};
+use diskdrift::config;
+use diskdrift::diff::{self, DiffSelection};
+use diskdrift::error::{DiskDriftError, Result};
+use diskdrift::history;
+use diskdrift::inspect;
+use diskdrift::json as jsonapi;
+use diskdrift::output::{
     diff as render_diff, history as render_history, human, inspect as render_inspect,
     size as fmt_size, top as render_top,
 };
-use whybig::retention::{self, RetentionPolicy};
-use whybig::since;
-use whybig::snapshot::service::{SnapshotService, StatusReport};
-use whybig::storage::Storage;
-use whybig::top::{self, TopMode};
+use diskdrift::retention::{self, RetentionPolicy};
+use diskdrift::since;
+use diskdrift::snapshot::service::{SnapshotService, StatusReport};
+use diskdrift::storage::Storage;
+use diskdrift::top::{self, TopMode};
+use indicatif::{ProgressBar, ProgressStyle};
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -80,7 +80,22 @@ fn run_init(cli: &Cli) -> Result<()> {
     let db_path = config::db_path(&data_dir);
     // new() creates the directory, opens and migrates the database.
     SnapshotService::new(data_dir.clone())?;
-    println!("WhyBig is ready.");
+
+    // Legacy (pre-release "WhyBig") data detection: DiskDrift NEVER deletes or
+    // auto-merges old data; it only points the user at manual migration steps.
+    if let Some(legacy_db) = config::legacy_db_path() {
+        eprintln!(
+            "note: legacy WhyBig data found at `{}`.",
+            legacy_db.display()
+        );
+        eprintln!("      DiskDrift does not delete or migrate it automatically.");
+        eprintln!(
+            "      To reuse it, copy it to `{}`, then re-run `diskdrift init`.",
+            db_path.display()
+        );
+    }
+
+    println!("DiskDrift is ready.");
     println!("  data directory: {}", data_dir.display());
     println!("  database:       {}", db_path.display());
     Ok(())
@@ -155,7 +170,7 @@ fn run_diff(
 ) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let Some(storage) = Storage::open_if_exists(&data_dir)? else {
-        return Err(WhyBigError::NotInitialized);
+        return Err(DiskDriftError::NotInitialized);
     };
 
     let selection = if let Some(d) = since_arg {
@@ -184,7 +199,7 @@ fn run_diff(
 fn run_inspect(cli: &Cli, raw_path: &Path, limit: Option<usize>, json: bool) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let Some(storage) = Storage::open_if_exists(&data_dir)? else {
-        return Err(WhyBigError::NotInitialized);
+        return Err(DiskDriftError::NotInitialized);
     };
 
     let target = inspect::normalize_target(raw_path);
@@ -203,7 +218,7 @@ fn run_inspect(cli: &Cli, raw_path: &Path, limit: Option<usize>, json: bool) -> 
 fn run_history(cli: &Cli, path: Option<&Path>, limit: Option<usize>, json: bool) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let Some(storage) = Storage::open_if_exists(&data_dir)? else {
-        return Err(WhyBigError::NotInitialized);
+        return Err(DiskDriftError::NotInitialized);
     };
     let report = history::history(&storage, path, limit.unwrap_or(20))?;
     if json {
@@ -225,7 +240,7 @@ fn run_top(
 ) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let Some(storage) = Storage::open_if_exists(&data_dir)? else {
-        return Err(WhyBigError::NotInitialized);
+        return Err(DiskDriftError::NotInitialized);
     };
     let selection = if let Some(d) = since_arg {
         DiffSelection::Since {
@@ -259,7 +274,7 @@ fn run_prune(
 ) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let Some(mut storage) = Storage::open_if_exists(&data_dir)? else {
-        return Err(WhyBigError::NotInitialized);
+        return Err(DiskDriftError::NotInitialized);
     };
 
     let policy = RetentionPolicy {
@@ -300,7 +315,7 @@ fn run_prune(
         let summary = apply_prune(&mut storage, &plan)?;
         println!("Removed {} snapshots.", summary.snapshots_removed);
         println!("Database logical data was reduced. SQLite may retain free pages for reuse.");
-        println!("Run `whybig compact` to shrink the file explicitly.");
+        println!("Run `diskdrift compact` to shrink the file explicitly.");
     } else {
         print_prune_preview(&plan, now_ms, oldest_removed_ms, db_size);
     }
@@ -357,17 +372,17 @@ fn print_prune_preview(
     println!();
     println!("No data has been deleted.");
     println!("Run:");
-    println!("  whybig prune --apply");
+    println!("  diskdrift prune --apply");
     println!("to apply this retention policy.");
     println!();
-    println!("(Retention only removes WhyBig's own snapshots; it never touches your files.)");
+    println!("(Retention only removes DiskDrift's own snapshots; it never touches your files.)");
     let _ = now_ms;
 }
 
 fn run_compact(cli: &Cli) -> Result<()> {
     let data_dir = config::data_dir(cli.data_dir.as_deref())?;
     let Some(mut storage) = Storage::open_if_exists(&data_dir)? else {
-        return Err(WhyBigError::NotInitialized);
+        return Err(DiskDriftError::NotInitialized);
     };
     storage.vacuum()?;
     println!("Database compacted (VACUUM).");
@@ -398,9 +413,9 @@ fn run_status(cli: &Cli, json: bool) -> Result<()> {
 
 fn print_status(report: &StatusReport) {
     if !report.initialized {
-        println!("WhyBig is not initialized here.");
+        println!("DiskDrift is not initialized here.");
         println!("  expected database: {}", report.db_path.display());
-        println!("Run `whybig init` to get started.");
+        println!("Run `diskdrift init` to get started.");
         return;
     }
 
@@ -450,7 +465,7 @@ fn print_status(report: &StatusReport) {
             );
         }
         None if report.initialized => {
-            println!("No snapshots yet — run `whybig snapshot <path>`.");
+            println!("No snapshots yet — run `diskdrift snapshot <path>`.");
         }
         None => {}
     }

@@ -4,11 +4,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use diskdrift::diff::{self, DiffSelection, DiffState};
+use diskdrift::inspect::{self, InspectReport};
+use diskdrift::snapshot::service::SnapshotService;
+use diskdrift::storage::Storage;
 use tempfile::TempDir;
-use whybig::diff::{self, DiffSelection, DiffState};
-use whybig::inspect::{self, InspectReport};
-use whybig::snapshot::service::SnapshotService;
-use whybig::storage::Storage;
 
 struct Harness {
     _td: TempDir,
@@ -64,7 +64,7 @@ impl Harness {
 }
 
 /// Contributor entry by absolute path.
-fn contributor<'a>(r: &'a InspectReport, abs: &Path) -> Option<&'a whybig::diff::DiffEntry> {
+fn contributor<'a>(r: &'a InspectReport, abs: &Path) -> Option<&'a diskdrift::diff::DiffEntry> {
     r.contributors.iter().find(|e| Path::new(&e.path) == abs)
 }
 

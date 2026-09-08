@@ -1,4 +1,4 @@
-//! Human rendering for `whybig history` (text timeline; no TUI chart library).
+//! Human rendering for `diskdrift history` (text timeline; no TUI chart library).
 
 use crate::history::HistoryReport;
 use crate::output::{human, size};

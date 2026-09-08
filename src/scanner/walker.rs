@@ -26,7 +26,7 @@ use super::{ScanResult, ScanSummary, ScanWarning, WarningKind};
 /// normalization so that snapshot keys stay consistent across runs.
 pub(crate) struct WalkOptions<'a> {
     pub root: &'a Path,
-    /// Subtree to ignore entirely (WhyBig's own data directory).
+    /// Subtree to ignore entirely (DiskDrift's own data directory).
     pub exclude: Option<&'a Path>,
     /// Maximum directory depth to descend into (`None` = unlimited).
     pub max_depth: Option<usize>,

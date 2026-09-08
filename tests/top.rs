@@ -3,11 +3,11 @@
 mod common;
 
 use common::{new_harness, Harness};
-use whybig::diff::{self, DiffSelection};
-use whybig::output::top as render_top;
-use whybig::top::{self, TopMode};
+use diskdrift::diff::{self, DiffSelection};
+use diskdrift::output::top as render_top;
+use diskdrift::top::{self, TopMode};
 
-fn top_of(h: &Harness, raw: Option<&str>, mode: TopMode) -> whybig::top::TopReport {
+fn top_of(h: &Harness, raw: Option<&str>, mode: TopMode) -> diskdrift::top::TopReport {
     let storage = h.storage();
     top::top(
         &storage,
@@ -19,7 +19,7 @@ fn top_of(h: &Harness, raw: Option<&str>, mode: TopMode) -> whybig::top::TopRepo
 }
 
 /// Assert `top` matches `diff` for the same pair (single source of truth).
-fn matches_diff(h: &Harness, report: &whybig::top::TopReport, mode: TopMode) {
+fn matches_diff(h: &Harness, report: &diskdrift::top::TopReport, mode: TopMode) {
     let storage = h.storage();
     let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
     let d = diff::compute(&storage, &pair.before, &pair.after, &report.scope).unwrap();
@@ -144,7 +144,7 @@ fn added_directory_appears_in_growth() {
         .iter()
         .find(|e| std::path::Path::new(&e.path).file_name().unwrap() == "fresh")
         .unwrap();
-    assert_eq!(e.state, whybig::diff::DiffState::Added);
+    assert_eq!(e.state, diskdrift::diff::DiffState::Added);
 }
 
 #[test]
@@ -161,7 +161,7 @@ fn removed_directory_appears_in_shrink() {
         .iter()
         .find(|e| std::path::Path::new(&e.path).file_name().unwrap() == "dead")
         .unwrap();
-    assert_eq!(e.state, whybig::diff::DiffState::Removed);
+    assert_eq!(e.state, diskdrift::diff::DiffState::Removed);
     assert_eq!(e.delta, -333);
 }
 
@@ -217,12 +217,12 @@ fn multiple_roots_default_selects_latest() {
     let root2 = td.path().join("r2");
     let data_dir = td.path().join("data");
     fn snap_root(
-        service: &mut whybig::snapshot::service::SnapshotService,
+        service: &mut diskdrift::snapshot::service::SnapshotService,
         root: &std::path::Path,
     ) -> i64 {
         service.run_snapshot(root, &mut |_| {}).unwrap().snapshot_id
     }
-    let mut service = whybig::snapshot::service::SnapshotService::new(data_dir.clone()).unwrap();
+    let mut service = diskdrift::snapshot::service::SnapshotService::new(data_dir.clone()).unwrap();
     std::fs::create_dir_all(&root1).unwrap();
     std::fs::create_dir_all(&root2).unwrap();
     snap_root(&mut service, &root1);
@@ -233,7 +233,7 @@ fn multiple_roots_default_selects_latest() {
     std::fs::write(root2.join("grow").join("f"), vec![1u8; 700]).unwrap();
     snap_root(&mut service, &root2);
 
-    let storage = whybig::storage::Storage::open(&data_dir).unwrap();
+    let storage = diskdrift::storage::Storage::open(&data_dir).unwrap();
     let report = top::top(&storage, DiffSelection::Default, None, TopMode::Growth).unwrap();
     // Only entries of root2 (the latest root) appear.
     // (Strip the Windows \\?\ prefix from canonicalize, as the service does.)

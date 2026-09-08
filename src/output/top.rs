@@ -1,4 +1,4 @@
-//! Human rendering for `whybig top` (quick ranking views).
+//! Human rendering for `diskdrift top` (quick ranking views).
 
 use std::path::Path;
 

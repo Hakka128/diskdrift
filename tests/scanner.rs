@@ -4,8 +4,8 @@
 use std::fs;
 use std::path::Path;
 
+use diskdrift::scanner::{scan, DirEntry, ScanOptions, ScanResult};
 use tempfile::TempDir;
-use whybig::scanner::{scan, DirEntry, ScanOptions, ScanResult};
 
 /// Scan one directory with default options (no exclusions, unlimited depth).
 fn scan_dir(dir: &Path) -> ScanResult {
@@ -85,7 +85,7 @@ fn large_file_reports_its_apparent_size() {
 
 #[test]
 fn sparse_file_uses_logical_size_not_allocated() {
-    // set_len creates a sparse file: allocated << logical. WhyBig reports the
+    // set_len creates a sparse file: allocated << logical. DiskDrift reports the
     // *apparent* (logical) size — asserting that documented behavior.
     let td = TempDir::new().unwrap();
     let f = fs::File::create(td.path().join("sparse.bin")).unwrap();

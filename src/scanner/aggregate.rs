@@ -1,7 +1,7 @@
 //! Directory-level aggregation counters.
 //!
 //! A [`DirAgg`] is the recursive total for one directory: everything below it,
-//! summed. WhyBig persists only these aggregates, never per-file records, so a
+//! summed. DiskDrift persists only these aggregates, never per-file records, so a
 //! snapshot of a million files stays proportional to the *directory* count.
 
 /// Recursive totals for one directory.

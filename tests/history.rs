@@ -4,8 +4,8 @@
 mod common;
 
 use common::{new_harness, Harness};
-use whybig::error::Result;
-use whybig::history::{self, HistoryReport};
+use diskdrift::error::Result;
+use diskdrift::history::{self, HistoryReport};
 
 fn history_for(h: &Harness, raw: Option<&str>, limit: usize) -> Result<HistoryReport> {
     let storage = h.storage();
@@ -118,7 +118,7 @@ fn directory_absent_then_returns() {
 fn multiple_roots_are_isolated() {
     let td = tempfile::TempDir::new().unwrap();
     let data_dir = td.path().join("data");
-    let mut service = whybig::snapshot::service::SnapshotService::new(data_dir.clone()).unwrap();
+    let mut service = diskdrift::snapshot::service::SnapshotService::new(data_dir.clone()).unwrap();
 
     let r1 = td.path().join("r1");
     let r2 = td.path().join("r2");
@@ -131,7 +131,7 @@ fn multiple_roots_are_isolated() {
     std::fs::write(r2.join("more"), [1u8; 300]).unwrap();
     service.run_snapshot(&r2, &mut |_| {}).unwrap();
 
-    let storage = whybig::storage::Storage::open(&data_dir).unwrap();
+    let storage = diskdrift::storage::Storage::open(&data_dir).unwrap();
     let r = history::history(&storage, None, 20).unwrap();
     // Only r2's two snapshots appear.
     assert_eq!(r.points.len(), 2);
@@ -187,8 +187,8 @@ fn single_snapshot_is_a_valid_one_point_history() {
 fn zero_snapshots_is_a_friendly_error() {
     let td = tempfile::TempDir::new().unwrap();
     let data_dir = td.path().join("data");
-    let _ = whybig::storage::Storage::init(&data_dir).unwrap();
-    let storage = whybig::storage::Storage::open(&data_dir).unwrap();
+    let _ = diskdrift::storage::Storage::init(&data_dir).unwrap();
+    let storage = diskdrift::storage::Storage::open(&data_dir).unwrap();
     let err = history::history(&storage, None, 20).unwrap_err();
     assert!(err.to_string().contains("no snapshots"));
 }

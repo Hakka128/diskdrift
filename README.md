@@ -1,23 +1,24 @@
-# WhyBig
+<div align="center">
 
-> Disk analyzers tell you what's big.
-> WhyBig tells you what **got** big.
+# DiskDrift
 
-WhyBig is a **disk growth tracker**, not another disk usage analyzer. It records
-directory-size snapshots over time and shows you *what ate your disk*, so you
-can answer: **"my disk grew 17 GB this week — where did it go?"**
+**Find what's quietly growing on your disk.**
 
-No file deletion. No background service. No cloud, telemetry or accounts. It
-observes, records, compares and explains.
+Disk analyzers tell you what's big.
+**DiskDrift tells you what got big.**
+
+*A fast, local-first disk growth debugger that shows what got big over time.*
+
+</div>
 
 ---
 
 ## Demo
 
-Real output from `examples/demo.rs` (deterministic fixture, real binary paths):
+Real output from `examples/demo.rs` (deterministic fixture, real binary):
 
 ```console
-$ whybig snapshot ~/demo-root
+$ diskdrift snapshot ~/demo-root
 4 files
 7 directories
 3.7 KB
@@ -26,14 +27,14 @@ Snapshot #1 saved in 0.0s
 
 # … a few days later …
 
-$ whybig snapshot ~/demo-root
+$ diskdrift snapshot ~/demo-root
 5 files
 5 directories
 7.8 KB
 
 Snapshot #2 saved in 0.0s
 
-$ whybig diff
+$ diskdrift diff
 Disk Growth
 2026-09-09 06:17:06 → 2026-09-09 06:17:06
 root: /home/you/demo-root
@@ -52,7 +53,7 @@ Shrank
 ────────────────────────
         -300 B  projects
 
-$ whybig inspect ~/demo-root/docker
+$ diskdrift inspect ~/demo-root/docker
 /home/you/demo-root/docker
 root: /home/you/demo-root
 
@@ -67,44 +68,43 @@ Contributors
        +2.9 KB  containers/
            0 B  other
 
-$ whybig top
+$ diskdrift top
 Top Disk Growth
 Sep 09 → Sep 09
        +2.9 KB  docker
        +1.5 KB  downloads
 ```
 
-## Problem
+## Why DiskDrift?
 
-`du` shows you what's *big* right now. It has no memory. WhyBig keeps a
-**timeline of directory-level sizes** (a few KB per snapshot in SQLite) and
-answers the questions users actually ask:
+`du` shows what's *big right now*. It has no memory, so it cannot tell you
+that 17 GB quietly appeared in `~/.docker` over two weeks. DiskDrift records
+**directory-level sizes over time** (a few KB per snapshot in a local SQLite
+file) and answers the questions people actually ask:
 
-- `whybig diff` — "between two moments, which top-level directories changed?"
-- `whybig inspect <dir>` — "inside *that* block, which child grew?"
-- `whybig history` — "how has this directory trended over time?"
-- `whybig top` — "who grew the most recently?"
+- `diskdrift diff` — "between two moments, which top-level directories changed?"
+- `diskdrift inspect <dir>` — "inside *that* block, which child grew?"
+- `diskdrift history` — "how has this directory trended over time?"
+- `diskdrift top` — "who grew the most recently?"
 
 ## Quick Start
 
 ```console
-$ whybig init
-$ whybig snapshot ~        # record a baseline
+$ diskdrift init
+$ diskdrift snapshot ~        # record a baseline
 # … later …
-$ whybig snapshot ~        # record another
-$ whybig diff --since 7d   # what changed in the last ~7 days
+$ diskdrift snapshot ~        # record another
+$ diskdrift diff --since 7d   # what changed in the last ~7 days
 ```
 
-Prune old snapshots (WhyBig's own history only — never your files):
+Keep the history tidy (removes DiskDrift's own snapshots only — never your
+files):
 
 ```console
-$ whybig prune             # dry-run preview, deletes nothing
-$ whybig prune --apply     # apply the retention policy
-$ whybig compact           # explicitly shrink the SQLite file (VACUUM)
+$ diskdrift prune             # dry-run preview, deletes nothing
+$ diskdrift prune --apply     # apply the retention policy
+$ diskdrift compact           # explicitly shrink the SQLite file (VACUUM)
 ```
-
-Machine-readable output everywhere: `--json` on `diff`, `inspect`, `history`,
-`top`, `status`, `snapshot` and `prune` (stable schema `schema_version: 1`).
 
 ## Commands
 
@@ -119,8 +119,8 @@ Machine-readable output everywhere: `--json` on `diff`, `inspect`, `history`,
 | `prune [--apply]` | Preview/apply snapshot retention (dry-run by default) |
 | `compact` | Explicitly VACUUM the database file |
 
-Common flags: `--data-dir <dir>` / `WHYBIG_DATA_DIR`, `--json` (stable output),
-`--limit N`, `--since 30m\|24h\|7d\|4w`.
+Common flags: `--data-dir <dir>`, `--json` (stable output), `--limit N`,
+`--since 30m|24h|7d|4w`. Environment: `DISKDRIFT_DATA_DIR`.
 
 ## How it works
 
@@ -132,64 +132,100 @@ Filesystem → Scanner → SnapshotService → SQLite (directory-level only)
 
 - Scans everything, but **stores only directory aggregates**
   (`path, size, file_count, dir_count, skipped`) — never a row per file.
-  A 1M-file snapshot is ~0.5 MB in SQLite.
 - Each snapshot write is **one transaction** (no half-snapshots).
 - Symlinks are never followed; Unix filesystems (`dev()`) are not crossed.
-- Permission-denied / vanished entries are counted as `skipped`, never fatal.
-- WhyBig's own data directory is excluded from any scan it overlaps.
+- Permission-denied / vanished entries become `skipped`, never fatal.
+- DiskDrift's own data directory is excluded from any scan it overlaps.
 - Sizes are apparent (logical) bytes; `size_kind` reserves `allocated`.
 - Retention (`prune`) buckets by **UTC** days/weeks, always keeps each root's
-  latest snapshot, and deletes inside a single transaction (FK cascade).
-- `--since` selection uses UTC timestamps and explicitly tells you when it had
-  to fall back to the earliest snapshot.
+  latest snapshot, deletes in one transaction (FK cascade).
+- `--since` uses UTC timestamps and honestly tells you when it fell back to
+  the earliest snapshot.
+
+## JSON / scripting
+
+Every command supports `--json` with a stable, versioned schema
+(`"schema_version": 1`); stdout contains exactly one JSON document
+(no progress bars, no warnings on stdout). Sizes are integer bytes;
+timestamps are RFC3339 UTC. Useful for `jq` pipelines and dashboards.
+
+```console
+$ diskdrift top --json | jq '.[]'           # every mode is machine-readable
+$ diskdrift snapshot ~ --json               # record + get created_at
+```
 
 ## Privacy
 
-- **Local only.** No network, no cloud, no telemetry, no accounts.
-- WhyBig **reads filenames and sizes**, never file contents.
-- It stores **directory-level size metadata** in your own SQLite database.
-- `prune` only removes WhyBig's own snapshots — it **never deletes or modifies
-  your files**. No background service, no file watcher, no auto-deletion.
+- **Local-first.** No network, no cloud, no telemetry, no accounts.
+- Reads **filenames and sizes only** — never file contents.
+- Stores **directory-level size metadata** in your own SQLite database
+  (`diskdrift.db` in the data directory).
+- `prune` only deletes **DiskDrift's own historical snapshots**; it never
+  deletes or modifies your files.
+- No background service, no file watcher, no auto-deletion, no auto-upload.
 
 ## Performance
 
-Local benchmark (Windows 11, NTFS, Ryzen 7 9800X3D, release build,
-`examples/bench`): a **1,000,000-file** auto-generated tree scans in **~1.3 s**
-(~750k files/s, tiny files), two snapshot writes ~0.5 s, and the database ends
-up **~0.5 MB** because only directory aggregates are stored. Details in
-[`BENCHMARKS.md`](BENCHMARKS.md) (environment-specific numbers, worst-case of
-Windows caching; not a guarantee).
+Measured on one reference machine (Windows 11, NTFS, Ryzen 7 9800X3D, NVMe,
+`--release`): a 1,000,000-file synthetic tree scans in **~1.3 s**, two
+snapshot writes ~0.5 s, and the resulting database is **~0.5 MB** because only
+directory aggregates are stored.
 
-## Limitations
-
-- Sizes are **directory-level**: WhyBig tells you which directory grew, not
-  which individual file (by design — see Roadmap for file-level attribution).
-- Windows does not have a cheap device-id, so filesystem-mount boundaries are
-  not detected on Windows (junction-heavy setups may behave differently).
-- Non-UTF-8 filenames are stored as deterministic lossy UTF-8 keys.
-- `--since` accepts whole units (`m`/`h`/`d`/`w`) only, no calendar math.
-- Peak memory is not measured cross-platform; memory is bounded by directory
-  count (never by file count).
+Results vary significantly by filesystem, hardware, cache state, antivirus,
+directory layout, and OS — see [`BENCHMARKS.md`](BENCHMARKS.md) for the full
+methodology and raw numbers.
 
 ## Installation
 
+From a release binary (recommended): download the archive for your platform
+from the [Releases](https://github.com/diskdrift/diskdrift/releases) page and
+verify against `SHA256SUMS`.
+
+From source:
+
 ```console
-cargo install --path .        # from a release checkout
-# or
-cargo build --release && ./target/release/whybig --help
+cargo build --release
+./target/release/diskdrift --help
 ```
 
-Runs on Linux, macOS and Windows (Rust stable, edition 2021; MSVC/GNU on
-Windows). CI builds and tests all three platforms.
+*(`cargo install diskdrift` will be listed here once the crate is published.)*
+
+Runs on Linux, macOS and Windows (Rust stable, edition 2021). CI builds and
+tests all three platforms.
+
+## Limitations
+
+- Sizes are **directory-level**: DiskDrift tells you which directory grew, not
+  which individual file (by design — see Roadmap).
+- Windows has no cheap device-id in `std`, so **filesystem-mount/junction
+  boundaries are not detected on Windows** (a junction into another volume is
+  followed like a normal directory).
+- Non-UTF-8 filenames are stored as **deterministic lossy UTF-8** keys.
+- Windows Unicode case-folding has edge cases: a differently-cased path that
+  no longer exists may read as 0 in history.
+- **No file-level historical attribution**; only directory aggregates persist.
+- `--since` accepts whole units (`m`/`h`/`d`/`w`) only — no calendar math.
+- Filesystem snapshots are **best-effort, not atomic**: sizes are a point-in-
+  time sample; racing scans may miss a concurrent change (documented).
 
 ## Roadmap
 
-- **v0.1.0** (this): snapshot · status · diff · inspect · history · top · prune
-  · JSON API v1 · benchmark framework.
-- Next: file-level attribution for small directories (optional, opt-in),
-  `diff --since` extra units, automated retention scheduling (explicit,
-  user-approved), `top --since 30d` polish, and Windows mount-boundary support.
+- **v0.1.0 (this release)**: snapshot · status · diff · inspect · history ·
+  top · prune · compact · JSON API v1 · benchmark framework.
+- Next: opt-in file-level attribution for small directories; more `--since`
+  units; scheduled retention (explicit, user-approved); Windows
+  mount-boundary support.
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Report security issues per
+[`SECURITY.md`](SECURITY.md).
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
 
 ---
 
-WhyBig observes and explains disk growth. It does not clean your computer.
+DiskDrift records, compares, and explains disk growth. It does not clean your
+computer, read your file contents, or send data anywhere.

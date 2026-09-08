@@ -5,11 +5,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use diskdrift::diff::{self, DiffEntry, DiffSelection, DiffState, SnapshotDiff};
+use diskdrift::output::diff as render_diff;
+use diskdrift::snapshot::service::SnapshotService;
+use diskdrift::storage::Storage;
 use tempfile::TempDir;
-use whybig::diff::{self, DiffEntry, DiffSelection, DiffState, SnapshotDiff};
-use whybig::output::diff as render_diff;
-use whybig::snapshot::service::SnapshotService;
-use whybig::storage::Storage;
 
 struct Harness {
     _td: TempDir,
@@ -474,7 +474,7 @@ fn explicit_same_snapshot_diff_is_allowed_and_empty() {
 
 #[test]
 fn signed_delta_never_overflows_for_u64_pairs() {
-    use whybig::diff::signed_delta;
+    use diskdrift::diff::signed_delta;
     assert_eq!(signed_delta(u64::MAX, 0), -(u64::MAX as i128));
     assert_eq!(signed_delta(0, u64::MAX), u64::MAX as i128);
     assert_eq!(signed_delta(5, 7), 2);
