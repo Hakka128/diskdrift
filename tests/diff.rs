@@ -99,9 +99,22 @@ fn entry_in<'a>(entries: &'a [DiffEntry], abs: &Path) -> Option<&'a DiffEntry> {
 
     let expected = comparable_path(abs);
 
-    entries
+    let found = entries
         .iter()
-        .find(|e| comparable_path(Path::new(&e.path)) == expected)
+        .find(|e| comparable_path(Path::new(&e.path)) == expected);
+
+    if found.is_none() {
+        eprintln!("expected: {:?}", expected);
+        for e in entries {
+            eprintln!(
+                "entry: {:?} -> comparable: {:?}",
+                e.path,
+                comparable_path(Path::new(&e.path))
+            );
+        }
+    }
+
+    found
 }
 
 // ─── basic diff ──────────────────────────────────────────────────────────
