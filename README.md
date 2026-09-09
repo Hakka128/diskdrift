@@ -11,6 +11,8 @@ Disk analyzers tell you what's big.
 
 </div>
 
+**Documentation:** English | [简体中文](docs/README.zh-CN.md)
+
 ---
 
 ## Demo
@@ -178,7 +180,7 @@ methodology and raw numbers.
 ## Installation
 
 From a release binary (recommended): download the archive for your platform
-from the [Releases](https://github.com/diskdrift/diskdrift/releases) page and
+from the [Releases](https://github.com/Hakka128/diskdrift/releases) page and
 verify against `SHA256SUMS`.
 
 From source:
@@ -197,9 +199,9 @@ runs as a portability/compatibility check.
 
 - Sizes are **directory-level**: DiskDrift tells you which directory grew, not
   which individual file (by design — see Roadmap).
-- Windows has no cheap device-id in `std`, so **filesystem-mount/junction
-  boundaries are not detected on Windows** (a junction into another volume is
-  followed like a normal directory).
+- Windows junctions / reparse points are treated like symlinks: they are
+  **not followed and not counted** (a junction into another volume is skipped,
+  not traversed).
 - Non-UTF-8 filenames are stored as **deterministic lossy UTF-8** keys.
 - Windows Unicode case-folding has edge cases: a differently-cased path that
   no longer exists may read as 0 in history.
