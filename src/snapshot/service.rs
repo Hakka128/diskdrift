@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::config;
 use crate::error::{DiskDriftError, Result};
-use crate::pathutil::{is_under, normalize_abs};
+use crate::pathutil::{canonicalize_scope_path, is_under, normalize_abs};
 use crate::scanner::{self, ScanOptions, ScanResult};
 use crate::storage::models::{EntryToWrite, NewSnapshot, SnapshotRecord};
 use crate::storage::Storage;
@@ -180,7 +180,13 @@ impl SnapshotService {
     }
 }
 
-/// Make a path absolute using the process cwd (fallback: return as-is).
+/// Make a path absolute using the process cwd and normalize its spelling to
+/// the same stored-canonical form the scan root uses (Windows 8.3 short names
+/// resolve to long names; macOS `/var` resolves to `/private/var`). This keeps
+/// the data-dir self-exclusion and the reverse "root inside data dir"
+/// rejection consistent when the data dir was supplied through an alias
+/// spelling while the scan root is canonicalized. When nothing exists to
+/// canonicalize, falls back to the plain absolute spelling (unchanged).
 fn absolutize(p: &Path) -> PathBuf {
     let abs = if p.is_absolute() {
         p.to_path_buf()
@@ -189,5 +195,6 @@ fn absolutize(p: &Path) -> PathBuf {
             .map(|c| c.join(p))
             .unwrap_or_else(|_| p.to_path_buf())
     };
-    normalize_abs(abs)
+    let abs = normalize_abs(abs);
+    canonicalize_scope_path(&abs).unwrap_or(abs)
 }
