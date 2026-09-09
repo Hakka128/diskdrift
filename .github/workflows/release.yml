@@ -77,6 +77,6 @@ jobs:
           draft: true
           generate_release_notes: true
           files: |
-            diskdrift-v${{ github.ref_name }}-*.zip
-            diskdrift-v${{ github.ref_name }}-*.tar.gz
-            diskdrift-v${{ github.ref_name }}-*.sha256
+            diskdrift-*.zip
+            diskdrift-*.tar.gz
+            diskdrift-*.sha256
