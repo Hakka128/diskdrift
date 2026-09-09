@@ -3,9 +3,61 @@
 
 mod common;
 
+#[cfg(windows)]
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use common::{new_harness, Harness};
 use diskdrift::error::Result;
 use diskdrift::history::{self, HistoryReport};
+
+/// Test-side normalization for representational path equality: Windows 8.3
+/// short-name aliases (`RUNNER~1` vs `runneradmin`) and macOS `/private`
+/// prefixes. Canonicalizes the nearest existing ancestor and re-appends any
+/// missing suffix — mirrors `tests/diff.rs`'s comparable-path logic.
+fn comparable_path(p: &Path) -> PathBuf {
+    let plain = PathBuf::from(strip_verbatim(p));
+    #[cfg(windows)]
+    {
+        let mut probe = plain.as_path();
+        let mut missing: Vec<std::ffi::OsString> = Vec::new();
+        loop {
+            if let Ok(base) = fs::canonicalize(probe) {
+                let mut resolved = PathBuf::from(strip_verbatim(&base));
+                for component in missing.iter().rev() {
+                    resolved.push(component);
+                }
+                return resolved;
+            }
+            let Some(name) = probe.file_name() else { break };
+            missing.push(name.to_os_string());
+            let Some(parent) = probe.parent() else { break };
+            probe = parent;
+        }
+        plain
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(rest) = plain.strip_prefix("/private") {
+            return Path::new("/").join(rest);
+        }
+        plain
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        plain
+    }
+}
+
+/// Strip the Windows `\\?\` verbatim prefix for test comparison.
+fn strip_verbatim(p: &Path) -> String {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        s.into_owned()
+    }
+}
 
 fn history_for(h: &Harness, raw: Option<&str>, limit: usize) -> Result<HistoryReport> {
     let storage = h.storage();
@@ -145,8 +197,13 @@ fn latest_root_selection_matches_diff() {
     h.snap();
     h.snap();
     let r = history_for(&h, None, 20).unwrap();
-    let root_name = r.root.to_string_lossy();
-    assert_eq!(root_name, h.root.to_string_lossy());
+    // The reported root is what diff/inspect use; spellings may differ by a
+    // Windows 8.3 alias, so compare canonicalized identity.
+    assert_eq!(
+        comparable_path(&r.root),
+        comparable_path(&h.root),
+        "reported root must be the same tracked root regardless of alias spelling"
+    );
 }
 
 #[test]

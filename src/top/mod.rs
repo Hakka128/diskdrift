@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::diff::{self, DiffEntry, DiffSelection, SinceInfo};
 use crate::error::{DiskDriftError, Result};
-use crate::pathutil::{is_under_scope, normalize_target};
+use crate::pathutil::{canonicalize_scope_path, is_under_scope, normalize_target};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
 
@@ -63,7 +63,14 @@ pub fn top(
         None => root.clone(),
     };
 
-    let d = diff::compute_pair(storage, &pair, &scope)?;
+    // DB keys are canonicalized (long-name) spellings; a caller may pass a
+    // Windows 8.3 alias. Use the canonical spelling for the direct-children
+    // query, keep the user-facing `scope` (original spelling) in the report.
+    let lookup_scope = canonicalize_scope_path(Path::new(&scope))
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|| scope.clone());
+
+    let d = diff::compute_pair(storage, &pair, &lookup_scope)?;
     let entries = match mode {
         TopMode::Growth => d.grew,
         TopMode::Shrink => d.shrank,

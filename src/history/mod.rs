@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diff::signed_delta;
 use crate::error::{DiskDriftError, Result};
-use crate::pathutil::{is_under_scope, normalize_target};
+use crate::pathutil::{canonicalize_scope_path, is_under_scope, normalize_target};
 use crate::storage::Storage;
 
 /// One point on the history timeline.
@@ -62,11 +62,19 @@ pub fn history(
         });
     }
 
-    let target_str = target.to_string_lossy().into_owned();
+    // The DB stores canonicalized (long-name) keys. A caller may supply a
+    // Windows 8.3 alias spelling (`C:\Users\RUNNER~1\...`) whose nearest
+    // existing ancestor canonicalizes to the long name (`runneradmin`).
+    // Resolve the lookup spelling via the shared helper; the *displayed*
+    // target stays as the user supplied it.
+    let lookup_target = canonicalize_scope_path(&target).unwrap_or_else(|| target.clone());
+    let lookup_target_str = lookup_target.to_string_lossy().into_owned();
+
     // Use the stored spelling when the user's casing differs (Windows NTFS is
-    // case-insensitive); fall back to the user's spelling (sizes read 0).
-    let stored = resolve_stored_spelling(storage, &root_str, &target_str);
-    let join_path = stored.as_deref().unwrap_or(&target_str);
+    // case-insensitive); fall back to the canonical lookup spelling (sizes
+    // read 0 only when the directory truly never existed in a snapshot).
+    let stored = resolve_stored_spelling(storage, &root_str, &lookup_target_str);
+    let join_path = stored.as_deref().unwrap_or(lookup_target_str.as_ref());
 
     let series = storage.get_history_series(&root_str, join_path, limit as i64)?;
 

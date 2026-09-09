@@ -49,17 +49,18 @@ jobs:
       - name: Release binary smoke
         run: |
           set -euo pipefail
-          ./target/release/whybig --version
-          ./target/release/whybig --help >/dev/null
+          test -x ./target/release/diskdrift
+          ./target/release/diskdrift --version
+          ./target/release/diskdrift --help >/dev/null
           DATA="$(mktemp -d)"
           TREE="$(mktemp -d)"
           mkdir -p "$TREE/app"
           echo hello > "$TREE/app/f.txt"
-          ./target/release/whybig --data-dir "$DATA" init
-          ./target/release/whybig --data-dir "$DATA" snapshot "$TREE"
-          ./target/release/whybig --data-dir "$DATA" snapshot "$TREE"
-          ./target/release/whybig --data-dir "$DATA" diff
-          ./target/release/whybig --data-dir "$DATA" top
-          ./target/release/whybig --data-dir "$DATA" history
-          ./target/release/whybig --data-dir "$DATA" prune
-          ./target/release/whybig --data-dir "$DATA" status
+          ./target/release/diskdrift --data-dir "$DATA" init
+          ./target/release/diskdrift --data-dir "$DATA" snapshot "$TREE"
+          ./target/release/diskdrift --data-dir "$DATA" snapshot "$TREE"
+          ./target/release/diskdrift --data-dir "$DATA" diff
+          ./target/release/diskdrift --data-dir "$DATA" top
+          ./target/release/diskdrift --data-dir "$DATA" history
+          ./target/release/diskdrift --data-dir "$DATA" prune
+          ./target/release/diskdrift --data-dir "$DATA" status
