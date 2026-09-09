@@ -190,8 +190,8 @@ cargo build --release
 
 *(`cargo install diskdrift` will be listed here once the crate is published.)*
 
-Runs on Linux, macOS and Windows (Rust stable, edition 2021). CI builds and
-tests all three platforms.
+Officially supported: **Windows and Linux** (Rust stable, edition 2021); CI
+builds and tests both.
 
 ## Limitations
 
