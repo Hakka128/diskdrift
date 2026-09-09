@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::diff::{self, DiffEntry, DiffSelection, SinceInfo};
 use crate::error::{DiskDriftError, Result};
-use crate::pathutil::{is_under, normalize_target};
+use crate::pathutil::{is_under_scope, normalize_target};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
 
@@ -52,7 +52,7 @@ pub fn top(
     let scope = match raw_target {
         Some(t) => {
             let target = normalize_target(t);
-            if !is_under(&target, Path::new(&root)) {
+            if !is_under_scope(&target, Path::new(&root)) {
                 return Err(DiskDriftError::PathOutsideRoot {
                     path: target.to_string_lossy().into_owned(),
                     root: root.clone(),

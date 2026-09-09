@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diff::{merge_children_deltas, signed_delta, DiffEntry};
 use crate::error::{DiskDriftError, Result};
-use crate::pathutil::{is_under, normalize_lexical};
+use crate::pathutil::{is_under_scope, normalize_lexical};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
 
@@ -55,7 +55,7 @@ pub fn inspect(
 ) -> Result<InspectReport> {
     let target = normalize_lexical(target);
     let target_str = target.to_string_lossy().into_owned();
-    if !is_under(&target, Path::new(root)) {
+    if !is_under_scope(&target, Path::new(root)) {
         return Err(DiskDriftError::PathOutsideRoot {
             path: target_str,
             root: root.to_string(),

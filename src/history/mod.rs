@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diff::signed_delta;
 use crate::error::{DiskDriftError, Result};
-use crate::pathutil::{is_under, normalize_target};
+use crate::pathutil::{is_under_scope, normalize_target};
 use crate::storage::Storage;
 
 /// One point on the history timeline.
@@ -55,7 +55,7 @@ pub fn history(
         Some(t) => normalize_target(t),
         None => root.clone(),
     };
-    if !is_under(&target, &root) {
+    if !is_under_scope(&target, &root) {
         return Err(DiskDriftError::PathOutsideRoot {
             path: target.to_string_lossy().into_owned(),
             root: root_str.clone(),

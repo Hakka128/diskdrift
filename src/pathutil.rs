@@ -21,6 +21,46 @@ pub fn is_under(child: &Path, ancestor: &Path) -> bool {
     true
 }
 
+fn canonicalize_scope_path(path: &Path) -> Option<PathBuf> {
+    let mut probe = path;
+    let mut missing = Vec::new();
+
+    loop {
+        if let Ok(base) = std::fs::canonicalize(probe) {
+            let mut resolved = normalize_abs(base);
+
+            for component in missing.iter().rev() {
+                resolved.push(component);
+            }
+
+            return Some(normalize_lexical(&resolved));
+        }
+
+        let name = probe.file_name()?.to_os_string();
+        missing.push(name);
+        probe = probe.parent()?;
+    }
+}
+
+/// Is `child` inside (or equal to) `ancestor`, allowing filesystem-canonical
+/// equivalents such as macOS `/var/...` and `/private/var/...`.
+///
+/// For paths that no longer exist, canonicalize the nearest existing ancestor
+/// and append the missing suffix before comparing.
+pub fn is_under_scope(child: &Path, ancestor: &Path) -> bool {
+    if is_under(child, ancestor) {
+        return true;
+    }
+
+    let canonical_child = canonicalize_scope_path(child);
+    let canonical_ancestor = canonicalize_scope_path(ancestor);
+
+    match (canonical_child, canonical_ancestor) {
+        (Some(child), Some(ancestor)) => is_under(&child, &ancestor),
+        _ => false,
+    }
+}
+
 /// Are two paths the same directory (component-equal)?
 pub fn paths_equal(a: &Path, b: &Path) -> bool {
     let ac = a.components().collect::<Vec<_>>();
@@ -153,6 +193,32 @@ mod tests {
         assert!(!is_under(&p("/foo/bar2"), &p("/foo/bar"))); // prefix collision!
         assert!(!is_under(&p("/foobar"), &p("/foo")));
         assert!(!is_under(&p("/bar"), &p("/foo/bar")));
+    }
+
+    #[test]
+    fn is_under_scope_preserves_normal_ancestry() {
+        assert!(is_under_scope(&p("/foo/bar/baz"), &p("/foo")));
+        assert!(is_under_scope(&p("/foo/bar"), &p("/foo/bar")));
+        assert!(!is_under_scope(&p("/foo/bar2"), &p("/foo/bar")));
+        assert!(!is_under_scope(&p("/other"), &p("/foo")));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn is_under_scope_handles_macos_var_alias() {
+        let child = Path::new("/var");
+        let ancestor = Path::new("/private/var");
+
+        assert!(is_under_scope(child, ancestor));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn is_under_scope_handles_missing_child_under_macos_var_alias() {
+        let child = Path::new("/var/__diskdrift_missing_scope_test__/deleted");
+        let ancestor = Path::new("/private/var");
+
+        assert!(is_under_scope(child, ancestor));
     }
 
     #[test]
