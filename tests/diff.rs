@@ -84,7 +84,22 @@ impl Harness {
 }
 
 fn entry_in<'a>(entries: &'a [DiffEntry], abs: &Path) -> Option<&'a DiffEntry> {
-    entries.iter().find(|e| Path::new(&e.path) == abs)
+    fn comparable_path(p: &Path) -> PathBuf {
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(rest) = p.strip_prefix("/private") {
+                return Path::new("/").join(rest);
+            }
+        }
+
+        p.to_path_buf()
+    }
+
+    let expected = comparable_path(abs);
+
+    entries
+        .iter()
+        .find(|e| comparable_path(Path::new(&e.path)) == expected)
 }
 
 // ─── basic diff ──────────────────────────────────────────────────────────
