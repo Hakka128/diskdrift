@@ -21,7 +21,7 @@ pub fn is_under(child: &Path, ancestor: &Path) -> bool {
     true
 }
 
-fn canonicalize_scope_path(path: &Path) -> Option<PathBuf> {
+pub(crate) fn canonicalize_scope_path(path: &Path) -> Option<PathBuf> {
     let mut probe = path;
     let mut missing = Vec::new();
 

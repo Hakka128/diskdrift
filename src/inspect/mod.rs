@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diff::{merge_children_deltas, signed_delta, DiffEntry};
 use crate::error::{DiskDriftError, Result};
-use crate::pathutil::{is_under_scope, normalize_lexical};
+use crate::pathutil::{canonicalize_scope_path, is_under_scope, normalize_lexical};
 use crate::storage::models::SnapshotRecord;
 use crate::storage::Storage;
 
@@ -54,6 +54,8 @@ pub fn inspect(
     target: &Path,
 ) -> Result<InspectReport> {
     let target = normalize_lexical(target);
+    let lookup_target = canonicalize_scope_path(&target).unwrap_or_else(|| target.clone());
+    let lookup_target_str = lookup_target.to_string_lossy().into_owned();
     let target_str = target.to_string_lossy().into_owned();
     if !is_under_scope(&target, Path::new(root)) {
         return Err(DiskDriftError::PathOutsideRoot {
@@ -62,8 +64,8 @@ pub fn inspect(
         });
     }
 
-    let after_entry = lookup(storage, after, &target_str)?;
-    let before_entry = lookup(storage, before, &target_str)?;
+    let after_entry = lookup(storage, after, &lookup_target_str)?;
+    let before_entry = lookup(storage, before, &lookup_target_str)?;
     if before_entry.is_none() && after_entry.is_none() {
         return Err(DiskDriftError::PathNotInSnapshots(target_str));
     }
