@@ -86,7 +86,35 @@ impl Harness {
 fn entry_in<'a>(entries: &'a [DiffEntry], abs: &Path) -> Option<&'a DiffEntry> {
     fn comparable_path(p: &Path) -> PathBuf {
         let plain = PathBuf::from(plain_path(p));
+        #[cfg(windows)]
+        {
+            let mut probe = plain.as_path();
+            let mut missing = Vec::new();
 
+            loop {
+                if let Ok(base) = std::fs::canonicalize(probe) {
+                    let mut resolved = PathBuf::from(plain_path(&base));
+
+                    for component in missing.iter().rev() {
+                        resolved.push(component);
+                    }
+
+                    return resolved;
+                }
+
+                let Some(name) = probe.file_name() else {
+                    break;
+                };
+
+                missing.push(name.to_os_string());
+
+                let Some(parent) = probe.parent() else {
+                    break;
+                };
+
+                probe = parent;
+            }
+        }
         #[cfg(target_os = "macos")]
         {
             if let Ok(rest) = plain.strip_prefix("/private") {
@@ -99,22 +127,9 @@ fn entry_in<'a>(entries: &'a [DiffEntry], abs: &Path) -> Option<&'a DiffEntry> {
 
     let expected = comparable_path(abs);
 
-    let found = entries
+    entries
         .iter()
-        .find(|e| comparable_path(Path::new(&e.path)) == expected);
-
-    if found.is_none() {
-        eprintln!("expected: {:?}", expected);
-        for e in entries {
-            eprintln!(
-                "entry: {:?} -> comparable: {:?}",
-                e.path,
-                comparable_path(Path::new(&e.path))
-            );
-        }
-    }
-
-    found
+        .find(|e| comparable_path(Path::new(&e.path)) == expected)
 }
 
 // ─── basic diff ──────────────────────────────────────────────────────────
