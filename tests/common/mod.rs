@@ -118,13 +118,36 @@ fn strip_verbatim(p: &Path) -> String {
     }
 }
 
-/// The **stored path spelling** the real product would write for a temp dir:
-/// `SnapshotService::resolve_root` canonicalizes the root, so a synthetic
-/// fixture that seeds `root_path`/`entries.path` must use the same spelling
-/// (Windows 8.3 aliases resolved to long names, macOS `/var`→`/private/var`).
-/// Tests that only call diff/visual logic need not use this; tests that route
-/// through inspect/history/top (which canonicalize lookups) must seed with it.
+/// The **stored path spelling** the real product would write for an arbitrary
+/// path: canonicalize (resolves Windows 8.3 aliases to long names and macOS
+/// `/var`→`/private/var`, preserving the canonical `/private` spelling) and
+/// strip the `\\?\` prefix — matching `SnapshotService::resolve_root`.
+/// When the path does not exist, canonicalize the nearest existing ancestor
+/// and re-append the missing suffix; falls back to the input when nothing
+/// exists. Synthetic fixtures and comparison helpers that query DB keys must
+/// use this; `comparable_path` (identity normalization, macOS strips
+/// `/private`) is a *different* concept and is not a storage key.
+pub fn stored_path_string(p: &Path) -> String {
+    let mut probe = p;
+    let mut missing: Vec<std::ffi::OsString> = Vec::new();
+    loop {
+        if let Ok(base) = fs::canonicalize(probe) {
+            let mut resolved = PathBuf::from(strip_verbatim(&base));
+            for component in missing.iter().rev() {
+                resolved.push(component);
+            }
+            return resolved.to_string_lossy().into_owned();
+        }
+        let Some(name) = probe.file_name() else { break };
+        missing.push(name.to_os_string());
+        let Some(parent) = probe.parent() else { break };
+        probe = parent;
+    }
+    p.to_string_lossy().into_owned()
+}
+
+/// `stored_path_string` for a temp dir (its canonical root is the real stored
+/// root spelling).
 pub fn stored_root_string(td: &TempDir) -> String {
-    let canon = fs::canonicalize(td.path()).unwrap_or_else(|_| td.path().to_path_buf());
-    strip_verbatim(&canon)
+    stored_path_string(td.path())
 }

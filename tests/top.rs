@@ -22,7 +22,11 @@ fn top_of(h: &Harness, raw: Option<&str>, mode: TopMode) -> diskdrift::top::TopR
 fn matches_diff(h: &Harness, report: &diskdrift::top::TopReport, mode: TopMode) {
     let storage = h.storage();
     let pair = diff::select_pair(&storage, DiffSelection::Default).unwrap();
-    let d = diff::compute(&storage, &pair.before, &pair.after, &report.scope).unwrap();
+    // `report.scope` keeps the user/display spelling; the lower-level diff
+    // query needs the stored-canonical lookup spelling (what `top::top`
+    // canonicalizes internally) so the comparison side resolves the same rows.
+    let lookup_scope = common::stored_path_string(std::path::Path::new(&report.scope));
+    let d = diff::compute(&storage, &pair.before, &pair.after, &lookup_scope).unwrap();
     let (ours, theirs) = match mode {
         TopMode::Growth => (&report.entries, &d.grew),
         TopMode::Shrink => (&report.entries, &d.shrank),
