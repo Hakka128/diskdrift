@@ -5,6 +5,8 @@
 //! with fixed snapshot timestamps, plus a byte-exact canonical-string golden
 //! that locks field order.
 
+mod common;
+
 use std::path::MAIN_SEPARATOR;
 
 use diskdrift::diff::{self, DiffSelection};
@@ -74,7 +76,10 @@ fn save_snapshot_fixed(
 fn seed_two_snapshots() -> (TempDir, Storage, i64, i64) {
     let td = TempDir::new().unwrap();
     let mut storage = Storage::init(td.path()).unwrap();
-    let root = td.path().to_string_lossy().into_owned();
+    // Use the real stored spelling (canonicalized root): inspect/history/top
+    // canonicalize lookups, so a synthetic fixture must store keys in the same
+    // spelling the product would (Windows 8.3 → long, macOS /var → /private/var).
+    let root = common::stored_root_string(&td);
     let id1 = save_snapshot_fixed(&mut storage, &root, T1, 1000, &[("a", 600), ("b", 400)]);
     let id2 = save_snapshot_fixed(
         &mut storage,
@@ -254,7 +259,7 @@ fn status_json_is_stable_and_schema_versioned() {
 fn negative_delta_is_preserved_and_signed() {
     let td = TempDir::new().unwrap();
     let mut storage = Storage::init(td.path()).unwrap();
-    let root = td.path().to_string_lossy().into_owned();
+    let root = common::stored_root_string(&td);
     let id1 = save_snapshot_fixed(&mut storage, &root, T1, 500, &[("b", 400)]);
     let id2 = save_snapshot_fixed(&mut storage, &root, T2, 200, &[("b", 100)]);
 
@@ -272,7 +277,7 @@ fn negative_delta_is_preserved_and_signed() {
 fn unicode_path_serializes_round_trip() {
     let td = TempDir::new().unwrap();
     let mut storage = Storage::init(td.path()).unwrap();
-    let root = td.path().to_string_lossy().into_owned();
+    let root = common::stored_root_string(&td);
     let dir = key(&root, "数据");
     let id1 = save_snapshot_fixed(&mut storage, &root, T1, 100, &[("数据", 100)]);
     let id2 = save_snapshot_fixed(&mut storage, &root, T2, 200, &[("数据", 200)]);

@@ -117,3 +117,14 @@ fn strip_verbatim(p: &Path) -> String {
         s.into_owned()
     }
 }
+
+/// The **stored path spelling** the real product would write for a temp dir:
+/// `SnapshotService::resolve_root` canonicalizes the root, so a synthetic
+/// fixture that seeds `root_path`/`entries.path` must use the same spelling
+/// (Windows 8.3 aliases resolved to long names, macOS `/var`→`/private/var`).
+/// Tests that only call diff/visual logic need not use this; tests that route
+/// through inspect/history/top (which canonicalize lookups) must seed with it.
+pub fn stored_root_string(td: &TempDir) -> String {
+    let canon = fs::canonicalize(td.path()).unwrap_or_else(|_| td.path().to_path_buf());
+    strip_verbatim(&canon)
+}
