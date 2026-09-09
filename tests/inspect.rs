@@ -1,6 +1,8 @@
 //! Inspect service integration tests — drill-down behavior, `other`
 //! calculation, added/removed directories, within-root validation.
 
+mod common;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -63,9 +65,15 @@ impl Harness {
     }
 }
 
-/// Contributor entry by absolute path.
+/// Contributor entry by absolute path. Comparison uses the shared
+/// `comparable_path` normalization because stored keys are canonical
+/// (long-name) spellings while the test builds expectations from the tempdir
+/// spelling (Windows 8.3 / macOS `/private` aliases).
 fn contributor<'a>(r: &'a InspectReport, abs: &Path) -> Option<&'a diskdrift::diff::DiffEntry> {
-    r.contributors.iter().find(|e| Path::new(&e.path) == abs)
+    let abs_cmp = common::comparable_path(abs);
+    r.contributors
+        .iter()
+        .find(|e| common::comparable_path(Path::new(&e.path)) == abs_cmp)
 }
 
 #[test]

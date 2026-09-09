@@ -67,3 +67,53 @@ pub fn rel_of<P: AsRef<Path>>(path: P, root: &Path) -> String {
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|_| path.as_ref().to_string_lossy().into_owned())
 }
+
+/// Test-side normalization for *representational* path equality across
+/// filesystem aliases: Windows 8.3 short names (`RUNNER~1` vs `runneradmin`)
+/// and macOS `/var` ↔ `/private/var`. Canonicalizes the nearest existing
+/// ancestor and re-appends any missing suffix — the same logic the historical
+/// local copies in `tests/diff.rs` / `tests/history.rs` use. This must ONLY be
+/// used where a test asserts path *identity*; it is not a product lookup.
+pub fn comparable_path(p: &Path) -> PathBuf {
+    let plain = PathBuf::from(strip_verbatim(p));
+    #[cfg(windows)]
+    {
+        let mut probe = plain.as_path();
+        let mut missing: Vec<std::ffi::OsString> = Vec::new();
+        loop {
+            if let Ok(base) = fs::canonicalize(probe) {
+                let mut resolved = PathBuf::from(strip_verbatim(&base));
+                for component in missing.iter().rev() {
+                    resolved.push(component);
+                }
+                return resolved;
+            }
+            let Some(name) = probe.file_name() else { break };
+            missing.push(name.to_os_string());
+            let Some(parent) = probe.parent() else { break };
+            probe = parent;
+        }
+        plain
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(rest) = plain.strip_prefix("/private") {
+            return Path::new("/").join(rest);
+        }
+        plain
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        plain
+    }
+}
+
+/// Strip the Windows `\\?\` verbatim prefix for test comparison.
+fn strip_verbatim(p: &Path) -> String {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        s.into_owned()
+    }
+}
