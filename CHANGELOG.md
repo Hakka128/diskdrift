@@ -30,7 +30,7 @@ Initial public release.
 - `diskdrift compact` — explicit `VACUUM` to shrink the SQLite file.
 - Stable JSON output (`--json`) for snapshot/status/diff/inspect/history/
   top/prune with `schema_version: 1` and RFC3339 UTC timestamps.
-- Officially supported platforms: Windows and Linux.
+- Officially supported platform: Windows.
 
 ### Safety
 

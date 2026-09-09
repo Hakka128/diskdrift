@@ -339,7 +339,7 @@ rayon：**不引入**。扫描是 I/O 密集、聚合必须确定性；跨线程
 
 ## 15. CI（GitHub Actions）
 
-CI test matrix：`ubuntu-latest` 与 `windows-latest`（v0.1.0 官方支持平台为 Windows + Linux）；另有 `release-smoke` job 在 ubuntu 上跑发布二进制冒烟。
+CI test matrix：`ubuntu-latest` 与 `windows-latest`（ubuntu 作为跨平台可移植性/兼容性检查，**不构成官方支持声明**；v0.1.0 官方支持平台为 Windows，发布产物仅 Windows x86_64）。另有 `release-smoke` job 在 ubuntu 上跑发布二进制冒烟。
 ```
 steps: checkout → dtolnay/rust-toolchain@stable (components: clippy, rustfmt)
       → cargo fmt --check

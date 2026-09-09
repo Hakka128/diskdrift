@@ -82,9 +82,10 @@ untouched.
   disk/filesystem/storage/cli/monitoring, categories
   command-line-utilities+filesystem.
 - Release pipeline (`.github/workflows/release.yml`) triggers on tags
-  `v0.1.0-rc.*` and `v0.1.0`; builds Windows x86_64 and Linux x86_64,
-  packages `diskdrift-v0.1.0-<target>.zip/.tar.gz`,
-  produces `SHA256SUMS`, uploads to the GitHub release.
+  `v0.1.0-rc.*` and `v0.1.0`; builds **Windows x86_64** only, packages
+  `diskdrift-v0.1.0-x86_64-pc-windows-msvc.zip` (+ `.sha256`), uploads to the
+  GitHub release. Ubuntu remains as CI portability coverage, not a release
+  target.
 - First validate the pipeline with `v0.1.0-rc.1` before approving `v0.1.0`.
 
 ## 7. What deliberately keeps the old name (intentional)
